@@ -1,10 +1,14 @@
 // Splits a local text file you already have into chapters under library/<id>/.
 // The text is copied as-is; nothing is fetched, and library/ is gitignored.
-// Usage: npm run import -- <file.txt> [--id my-book] [--title 书名] [--force]
+// Usage: npm run import -- <file.txt> [--id my-book] [--title 书名] [--category 分类]
+//                          [--density 2-6] [--force]
+//        npm run import -- --reindex   (rebuild library/index.json after editing a book.json)
+//   --density: on average one tagged word every <min>-<max> sentences.
 import { readFile, writeFile, mkdir, rm, access, readdir } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
+import { DEFAULT_DENSITY } from './validate-content.mjs';
 
 const DEFAULT_LIBRARY = fileURLToPath(new URL('../library', import.meta.url));
 const HEADING = /^(第[0-9０-９零〇一二两三四五六七八九十百千万]+[章回节卷集部篇]|chapter\s+\d+|序章|序言|楔子|引子|尾声|后记|番外)(\s.*|[：:].*)?$/i;
@@ -64,7 +68,16 @@ function defaultId(file, text) {
   return slug || `book-${createHash('sha256').update(text).digest('hex').slice(0, 8)}`;
 }
 
-export async function importText(file, { id, title, libraryDir = DEFAULT_LIBRARY, force = false } = {}) {
+// "1-2" or "3" → { min, max } sentences per tagged word.
+export function parseDensity(text) {
+  const m = /^(\d+(?:\.\d+)?)(?:-(\d+(?:\.\d+)?))?$/.exec(String(text).trim());
+  const min = m && Number(m[1]);
+  const max = m && Number(m[2] ?? m[1]);
+  if (!m || !(min > 0) || max < min) throw new Error(`Invalid --density "${text}": use <min>-<max> sentences per word, e.g. 1-2`);
+  return { min, max };
+}
+
+export async function importText(file, { id, title, category, density, libraryDir = DEFAULT_LIBRARY, force = false } = {}) {
   if (/^[a-z][a-z0-9+.-]*:\/\//i.test(file)) {
     throw new Error('Import only reads a local text file you already have. URLs are not supported.');
   }
@@ -90,8 +103,9 @@ export async function importText(file, { id, title, libraryDir = DEFAULT_LIBRARY
   const book = {
     id: bookId,
     title: title ?? basename(file, extname(file)),
+    ...(category ? { category } : {}),
     level: 'IELTS',
-    density: { min: 8, max: 15 },
+    density: { ...DEFAULT_DENSITY, sentencesPerWord: density ?? DEFAULT_DENSITY.sentencesPerWord },
     chapters: entries,
   };
   await writeFile(join(bookDir, 'book.json'), `${JSON.stringify(book, null, 2)}\n`);
@@ -105,7 +119,7 @@ export async function updateLibraryIndex(libraryDir = DEFAULT_LIBRARY) {
   for (const entry of await readdir(libraryDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const book = await readFile(join(libraryDir, entry.name, 'book.json'), 'utf8').then(JSON.parse, () => null);
-    if (book) books.push({ id: book.id, title: book.title, chapters: book.chapters.length });
+    if (book) books.push({ id: book.id, title: book.title, chapters: book.chapters.length, ...(book.category ? { category: book.category } : {}) });
   }
   books.sort((a, b) => a.id.localeCompare(b.id));
   await writeFile(join(libraryDir, 'index.json'), `${JSON.stringify({ books }, null, 2)}\n`);
@@ -120,14 +134,22 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   };
   const id = opt('id');
   const title = opt('title');
+  const category = opt('category');
+  const densityArg = opt('density');
   const force = args.includes('--force');
   const file = args.find((a) => !a.startsWith('--'));
+  if (args.includes('--reindex') && !file) {
+    const books = await updateLibraryIndex();
+    console.log(`Indexed ${books.length} book(s) in library/index.json`);
+    process.exit(0);
+  }
   if (!file) {
-    console.error('Usage: npm run import -- <file.txt> [--id my-book] [--title 书名] [--force]');
+    console.error('Usage: npm run import -- <file.txt> [--id my-book] [--title 书名] [--category 分类] [--density 2-6] [--force]');
     process.exit(1);
   }
   try {
-    const { bookDir, book } = await importText(file, { id, title, force });
+    const density = densityArg === undefined ? undefined : parseDensity(densityArg);
+    const { bookDir, book } = await importText(file, { id, title, category, density, force });
     console.log(`Imported ${book.chapters.length} chapters into ${bookDir}`);
     console.log(`Next: ask your agent to run the cliffword-annotate skill on "${book.id}".`);
   } catch (err) {

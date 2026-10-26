@@ -13,7 +13,7 @@ export async function listBuiltIn() {
   const { stories } = await get('content/index.json');
   return Promise.all(stories.map(async (id) => {
     const [story, vocab] = await Promise.all([get(`content/${id}/story.json`), get(`content/${id}/vocab.json`)]);
-    return { source: 'builtin', id, title: story.title, note: story.source, chapters: story.chapters.length, words: vocab.words.length };
+    return { source: 'builtin', id, title: story.title, category: story.category, note: story.source, chapters: story.chapters.length, words: vocab.words.length };
   }));
 }
 
@@ -47,8 +47,7 @@ function byId(words) {
 
 async function loadBuiltIn(id) {
   const base = `content/${encodeURIComponent(id)}/`;
-  const story = await get(`${base}story.json`);
-  const vocab = await get(`${base}vocab.json`);
+  const [story, vocab] = await Promise.all([get(`${base}story.json`), get(`${base}vocab.json`)]);
   const chapters = await Promise.all(story.chapters.map((file) => get(base + file)));
   return {
     source: 'builtin', id, title: story.title, note: story.source,
@@ -59,8 +58,7 @@ async function loadBuiltIn(id) {
 
 async function loadImported(id) {
   const base = `library/${encodeURIComponent(id)}/`;
-  const book = await get(`${base}book.json`);
-  const vocab = await get(`${base}vocab.json`).catch(() => ({ words: [] }));
+  const [book, vocab] = await Promise.all([get(`${base}book.json`), get(`${base}vocab.json`).catch(() => ({ words: [] }))]);
   const chapters = book.chapters.map(({ id: cid, title }) => {
     let loaded;
     return {

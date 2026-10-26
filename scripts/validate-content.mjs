@@ -2,9 +2,10 @@
 // Usage: node scripts/validate-content.mjs [content-dir]
 //        node scripts/validate-content.mjs library --library
 import { readFile, readdir } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { applyAnnotations, splitParagraphs } from './lib/annotate.mjs';
+import { applyAnnotations, countSentences, splitParagraphs } from './lib/annotate.mjs';
+import { collectAudio } from './lib/audio.mjs';
 import { createWordlist } from './lib/wordlist.mjs';
 
 const WORDLIST_PATH = fileURLToPath(new URL('../data/ielts.json', import.meta.url));
@@ -17,9 +18,13 @@ export async function loadWordlist(path = WORDLIST_PATH) {
   return list;
 }
 
-const DEFAULTS = { minWords: 30, maxWords: 50, minOccurrences: 2, requireHook: true, perChapter: null };
-// Imported books: no total word range and no hook markup, but a per-chapter density.
-const BOOK_DEFAULTS = { minWords: 0, maxWords: Infinity, requireHook: false, perChapter: { min: 8, max: 15 } };
+const DEFAULTS = { minWords: 30, maxWords: 50, minOccurrences: 2, requireHook: true, density: null };
+// Imported books: no total word range and no hook markup, but a density that
+// scales with chapter length: on average one tagged word every
+// sentencesPerWord.min–max sentences, and no word tagged more than
+// maxPerWord times in one chapter.
+export const DEFAULT_DENSITY = { sentencesPerWord: { min: 2, max: 6 }, maxPerWord: 6 };
+const BOOK_DEFAULTS = { minWords: 0, maxWords: Infinity, requireHook: false };
 const ENGLISH_FORM = /^[A-Za-z][A-Za-z' -]*$/;
 
 async function readJson(path) {
@@ -40,7 +45,7 @@ function containsWord(sentence, word) {
 }
 
 export function validateStoryData({ story, vocab, chapters }, options = {}) {
-  const { minWords, maxWords, minOccurrences, requireHook, perChapter } = { ...DEFAULTS, ...options };
+  const { minWords, maxWords, minOccurrences, requireHook, density } = { ...DEFAULTS, ...options };
   const errors = [];
   const words = new Map();
 
@@ -65,7 +70,7 @@ export function validateStoryData({ story, vocab, chapters }, options = {}) {
     if (!paragraphs.length) errors.push(`${at}: no paragraphs`);
     else if (requireHook && paragraphs.at(-1).hook !== true) errors.push(`${at}: last paragraph must be marked "hook": true`);
 
-    const inChapter = new Set();
+    const inChapter = new Map();
     paragraphs.forEach((paragraph, p) => {
       for (const seg of paragraph.segments ?? []) {
         if (typeof seg === 'string') continue;
@@ -79,12 +84,10 @@ export function validateStoryData({ story, vocab, chapters }, options = {}) {
         const list = occurrences.get(seg.w) ?? [];
         list.push(seg);
         occurrences.set(seg.w, list);
-        inChapter.add(seg.w);
+        inChapter.set(seg.w, (inChapter.get(seg.w) ?? 0) + 1);
       }
     });
-    if (perChapter && (inChapter.size < perChapter.min || inChapter.size > perChapter.max)) {
-      errors.push(`${at} uses ${inChapter.size} target words, expected ${perChapter.min}–${perChapter.max}`);
-    }
+    if (density && chapter.sentences) errors.push(...checkDensity(at, chapter.sentences, inChapter, density));
   }
 
   for (const [id, word] of words) {
@@ -106,6 +109,44 @@ export function validateStoryData({ story, vocab, chapters }, options = {}) {
   return errors;
 }
 
+// How many tagged words a chapter of `sentences` sentences needs.
+export function densityRange(sentences, { sentencesPerWord: { min, max } }) {
+  const low = Math.max(1, Math.ceil(sentences / max));
+  return { min: low, max: Math.max(low, Math.floor(sentences / min)) };
+}
+
+function checkDensity(at, sentences, counts, density) {
+  const errors = [];
+  const tags = [...counts.values()].reduce((n, c) => n + c, 0);
+  const range = densityRange(sentences, density);
+  const { min, max } = density.sentencesPerWord;
+  if (tags < range.min || tags > range.max) {
+    const every = tags ? `one every ${(sentences / tags).toFixed(1)} sentences` : 'none';
+    errors.push(`${at} has ${sentences} sentences and ${tags} tagged words (${every}); expected one every ${min}–${max} sentences, i.e. ${range.min}–${range.max} tagged words`);
+  }
+  for (const [id, count] of counts) {
+    if (count > density.maxPerWord) errors.push(`${at} tags "${id}" ${count} times, at most ${density.maxPerWord} per chapter: use more distinct words`);
+  }
+  return errors;
+}
+
+// book.json density, with defaults filled in. The old fixed { min, max }
+// word count is reported, and the default density is used instead.
+export function bookDensity(raw) {
+  if (raw && raw.sentencesPerWord === undefined && (raw.min !== undefined || raw.max !== undefined)) {
+    return {
+      density: DEFAULT_DENSITY,
+      error: `book.json: density { "min": ${raw.min}, "max": ${raw.max} } is a fixed word count per chapter, which doesn't scale with chapter length. Replace it with ${JSON.stringify(DEFAULT_DENSITY)} or another sentencesPerWord range`,
+    };
+  }
+  const density = { ...DEFAULT_DENSITY, ...raw, sentencesPerWord: { ...DEFAULT_DENSITY.sentencesPerWord, ...raw?.sentencesPerWord } };
+  const { min, max } = density.sentencesPerWord;
+  if (!(min > 0 && max >= min) || !(density.maxPerWord >= 1)) {
+    return { density: DEFAULT_DENSITY, error: `book.json: invalid density ${JSON.stringify(raw)}: sentencesPerWord needs 0 < min ≤ max, and maxPerWord at least 1` };
+  }
+  return { density, error: null };
+}
+
 // An imported book: book.json, vocab.json, untouched source/NNN.txt and the
 // agent-written annotations/NNN.json. Chapters are assembled in memory.
 export async function loadBook(dir) {
@@ -117,9 +158,11 @@ export async function loadBook(dir) {
     const source = await readFile(join(dir, 'source', `${id}.txt`), 'utf8');
     const annotations = await readJson(join(dir, 'annotations', `${id}.json`)).catch(() => null);
     if (!annotations) errors.push(`chapter "${id}" is not annotated yet`);
-    const built = applyAnnotations(splitParagraphs(source), annotations?.occurrences ?? []);
+    const texts = splitParagraphs(source);
+    const built = applyAnnotations(texts, annotations?.occurrences ?? []);
     errors.push(...built.errors.map((e) => `chapter "${id}": ${e}`));
-    chapters.push({ id, title, paragraphs: built.paragraphs });
+    // Unannotated chapters are already reported; skip their density check.
+    chapters.push({ id, title, paragraphs: built.paragraphs, sentences: annotations ? countSentences(texts) : 0 });
   }
   return { story: book, vocab, chapters, errors };
 }
@@ -153,8 +196,9 @@ export function checkAgainstWordlist({ vocab, chapters }, list) {
 
 export async function validateBook(dir, options = {}) {
   const data = await loadBook(dir);
-  const perChapter = options.perChapter ?? data.story.density ?? BOOK_DEFAULTS.perChapter;
-  const errors = [...data.errors, ...validateStoryData(data, { ...BOOK_DEFAULTS, ...options, perChapter })];
+  const { density, error } = options.density ? { density: options.density, error: null } : bookDensity(data.story.density);
+  const errors = [...data.errors, ...(error ? [error] : []), ...validateStoryData(data, { ...BOOK_DEFAULTS, ...options, density })];
+  errors.push(...await checkAudio(dir));
   // options.wordlist: a list from createWordlist, or false to skip (tests).
   if (options.wordlist !== false && String(data.story.level ?? 'IELTS').toUpperCase() === 'IELTS') {
     const list = options.wordlist ?? await loadWordlist().catch(() => null);
@@ -162,6 +206,20 @@ export async function validateBook(dir, options = {}) {
     else errors.push(...checkAgainstWordlist(data, list));
   }
   return errors;
+}
+
+// Audio is optional, but once a book has it every clip must be there, so
+// a word added after `npm run audio` doesn't silently fall back.
+async function checkAudio(dir) {
+  const manifest = await readJson(join(dir, 'audio', 'manifest.json')).catch(() => null);
+  if (!manifest?.files) return [];
+  const missing = [];
+  for (const { text, file } of await collectAudio(dir)) {
+    if (!manifest.files[file] || !(await readFile(join(dir, 'audio', file)).then(() => true, () => false))) missing.push(text);
+  }
+  if (!missing.length) return [];
+  const sample = missing.slice(0, 3).map((t) => `"${t}"`).join(', ');
+  return [`audio is missing for ${missing.length} word(s) or example(s) (${sample}); run npm run audio -- library/${basename(dir)}`];
 }
 
 export async function validateAll(contentDir, options, { library = false } = {}) {

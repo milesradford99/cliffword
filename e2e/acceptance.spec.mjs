@@ -143,3 +143,40 @@ test('errors and saved words are due the next day, and export/import restores st
   await expect(page.getByText('今天没有要复习的单词。还有 2 个单词会在之后几天复习。')).toBeVisible();
   await expect(page.locator('.stats div', { hasText: '答题正确率' }).locator('dd')).toHaveText('67%（2/3）');
 });
+
+test('the shelf sorts books into categories and read states, as a grid or a list', async ({ page }) => {
+  await page.goto('/');
+  const shelf = page.locator('.shelf');
+  await expect(shelf.locator('.books-grid .cover')).toHaveCount(2);
+  await expect(shelf.getByRole('button', { name: '我的书库 1' })).toBeVisible();
+
+  // Reading 画皮 moves it to 在读.
+  await expect(shelf.getByRole('link', { name: /画皮/ })).toContainText('未读 · 0/3 章');
+  await page.goto('/#/read/builtin/huapi/01');
+  await page.getByRole('link', { name: /下一章/ }).click();
+  await page.goto('/');
+  await expect(shelf.getByRole('link', { name: /画皮/ })).toContainText('在读 · 1/3 章');
+
+  // Give the imported book a category and mark it read.
+  await shelf.getByRole('button', { name: '整理《演示书》' }).click();
+  const dialog = page.locator('#shelf-edit');
+  await dialog.getByLabel('分类').fill('小说');
+  await dialog.getByLabel('标为已读').check();
+  await dialog.getByRole('button', { name: '保存' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(shelf.getByRole('link', { name: /演示书/ })).toContainText('小说 · 本机');
+  await expect(shelf.getByRole('link', { name: /演示书/ })).toContainText('已读 · 0/1 章');
+
+  await shelf.getByRole('button', { name: '小说 1' }).click();
+  await expect(shelf.locator('.book')).toHaveCount(1);
+  await shelf.getByRole('button', { name: '全部 2' }).first().click();
+  await shelf.getByRole('button', { name: '在读 1' }).click();
+  await expect(shelf.locator('.book-title')).toHaveText(['画皮']);
+
+  // Filters and the list view are remembered.
+  await shelf.getByRole('button', { name: '列表' }).click();
+  await page.reload();
+  await expect(shelf.locator('.books-list')).toBeVisible();
+  await expect(shelf.locator('.cover').first()).toBeHidden();
+  await expect(shelf.getByRole('button', { name: '在读 1' })).toHaveAttribute('aria-pressed', 'true');
+});

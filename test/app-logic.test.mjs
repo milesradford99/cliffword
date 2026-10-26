@@ -70,3 +70,35 @@ test('store works in memory when storage throws', () => {
   assert.equal(s.isSaved('x'), true);
   assert.equal(s.persistent, false);
 });
+
+test('shelf status follows progress unless the reader sets one', () => {
+  const store = createStore(memoryStorage());
+  const key = 'library/demo';
+  assert.equal(store.status(key, 2), 'unread');
+  store.setPosition(key, { chapter: '001', chapterNumber: 1, paragraph: 0 });
+  assert.equal(store.status(key, 2), 'reading');
+  store.markComplete(key, '001');
+  store.markComplete(key, '002');
+  assert.equal(store.status(key, 2), 'done');
+  store.setShelf(key, { status: 'unread' });
+  assert.equal(store.status(key, 2), 'unread');
+  assert.equal(store.statusOverride(key), 'unread');
+  store.setShelf(key, { status: null });
+  assert.equal(store.status(key, 2), 'done');
+});
+
+test('shelf categories are trimmed, listed once, reset when blank, and survive a backup', () => {
+  const store = createStore(memoryStorage());
+  store.setShelf('builtin/huapi', { category: '  志怪 ' });
+  store.setShelf('library/a', { category: '志怪', status: 'done' });
+  assert.equal(store.category('builtin/huapi'), '志怪');
+  assert.deepEqual(store.categories(), ['志怪']);
+  store.setShelf('builtin/huapi', { category: '' });
+  assert.equal(store.category('builtin/huapi'), null);
+  assert.equal('builtin/huapi' in store.data.shelf, false);
+
+  const restored = createStore(memoryStorage());
+  restored.importJSON(store.exportJSON());
+  assert.equal(restored.category('library/a'), '志怪');
+  assert.equal(restored.status('library/a', 3), 'done');
+});

@@ -72,6 +72,7 @@ a { color: var(--accent); text-underline-offset: 0.2em; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
 
 button, input { font: inherit; color: inherit; }
+fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 
 [lang="en"] { font-family: var(--latin); }
 
@@ -90,10 +91,29 @@ button, input { font: inherit; color: inherit; }
 
 h2 { font-size: 1.05rem; color: var(--muted); font-weight: 600; letter-spacing: 0.1em; margin: 2rem 0 0.75rem; }
 
-.books { list-style: none; padding: 0; margin: 0; display: grid; gap: 0.75rem; }
+.page.home { max-width: 52rem; }
+
+/* ---------- Shelf ---------- */
+
+.shelf-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; margin: 2rem 0 0.5rem; }
+.shelf-head h2 { margin: 0; }
+.view-toggle { display: flex; gap: 4px; }
+
+.filters { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; margin: 0 0 0.5rem; }
+.filter-label { font-family: var(--ui); font-size: 0.8rem; color: var(--muted); min-width: 2.5em; }
+.chip {
+  min-height: 36px; padding: 0.2rem 0.85rem; border: 1px solid var(--rule); border-radius: 999px;
+  background: var(--card); cursor: pointer; font-family: var(--ui); font-size: 0.875rem;
+}
+.chip:hover { border-color: var(--accent); }
+.chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--paper); font-weight: 600; }
+
+.books { list-style: none; padding: 0; margin: 0.75rem 0 0; display: grid; gap: 0.75rem; }
+.books-grid { grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr)); }
+.shelf-item { position: relative; min-width: 0; }
 
 .book {
-  display: grid; gap: 0.15rem;
+  display: grid; gap: 0.15rem; height: 100%; align-content: start;
   padding: 1rem 1.1rem;
   background: var(--card);
   border: 1px solid var(--rule);
@@ -103,9 +123,44 @@ h2 { font-size: 1.05rem; color: var(--muted); font-weight: 600; letter-spacing: 
   box-shadow: 0 1px 0 var(--rule);
 }
 .book:hover { border-color: var(--accent); }
-.book-title { font-size: 1.5rem; font-weight: 600; }
+.book-title { font-size: 1.5rem; font-weight: 600; padding-right: 2.5rem; overflow-wrap: anywhere; }
 .book-meta { color: var(--muted); font-family: var(--ui); font-size: 0.875rem; }
 .book-action { color: var(--accent); font-family: var(--ui); font-size: 0.9rem; margin-top: 0.35rem; }
+
+/* A cover drawn from the title: a coloured board with a darker spine. */
+.cover {
+  display: none; aspect-ratio: 3 / 4; margin-bottom: 0.5rem; padding: 0.75rem 0.5rem;
+  border-radius: 4px 8px 8px 4px; overflow: hidden;
+  background: linear-gradient(160deg, hsl(var(--hue) 42% 42%), hsl(var(--hue) 46% 28%));
+  box-shadow: inset 7px 0 0 rgb(0 0 0 / 0.18), inset 9px 0 0 rgb(255 255 255 / 0.08);
+  color: #fbf4e6; align-items: flex-start; padding-left: 1.1rem;
+}
+.cover-title {
+  writing-mode: vertical-rl; font-size: 1.35rem; font-weight: 600; letter-spacing: 0.25em; line-height: 1.3;
+  max-height: 100%; overflow: hidden; border: 1px solid rgb(255 255 255 / 0.35); padding: 0.5rem 0.2rem; background: rgb(0 0 0 / 0.12);
+}
+.books-grid .cover { display: flex; }
+.books-grid .book { padding: 0.6rem 0.6rem 0.75rem; }
+.books-grid .book-title { font-size: 1.05rem; padding-right: 0; line-height: 1.4; }
+.books-grid .book-meta { font-size: 0.8rem; }
+
+.status {
+  justify-self: start; margin-top: 0.3rem; padding: 0 0.55rem; border-radius: 999px;
+  font-family: var(--ui); font-size: 0.78rem; line-height: 1.7; background: var(--paper); color: var(--muted);
+}
+.status-reading { background: var(--accent-soft); color: var(--accent); }
+.status-done { background: var(--ok-soft); color: var(--ok); }
+
+.book-edit {
+  position: absolute; top: 0.35rem; right: 0.35rem; font-size: 1.2rem; line-height: 1;
+  background: color-mix(in srgb, var(--card) 85%, transparent);
+}
+.books-grid .book-edit { top: 0.95rem; right: 0.95rem; }
+
+.status-choice { margin-top: 1rem; }
+.status-choice legend { font-family: var(--ui); font-size: 0.9rem; color: var(--muted); padding: 0; }
+.sheet .radio { display: flex; align-items: center; gap: 0.5rem; min-height: 44px; margin: 0; color: var(--ink); font-size: 1rem; cursor: pointer; }
+.sheet .radio input { width: 1.15rem; height: 1.15rem; min-height: 0; margin: 0; accent-color: var(--accent); }
 
 .notice {
   background: var(--card); border: 1px dashed var(--rule); border-radius: 10px;
@@ -285,5 +340,5 @@ dialog::backdrop { background: rgb(30 20 10 / 0.45); }
 .text-btn { border: 0; background: none; color: var(--accent); cursor: pointer; text-decoration: underline; min-height: 44px; font-family: var(--ui); }
 
 @media (prefers-reduced-motion: no-preference) {
-  .w, .mode, .book { transition: background-color 0.15s, border-color 0.15s; }
+  .w, .mode, .book, .chip { transition: background-color 0.15s, border-color 0.15s; }
 }
