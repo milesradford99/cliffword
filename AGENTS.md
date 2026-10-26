@@ -7,6 +7,7 @@
 - `npm run import -- <file.txt>`: split a local text file into `library/<id>/` (gitignored).
 - `npm run validate:library [-- library/<id>]`: validate imported books (or one book), including the IELTS word list and gloss checks.
 - `npm run words -- suggest <id> <chapter>` / `npm run words -- lookup <word>`: word-list helpers for annotating.
+- `npm run audio [-- library/<id>]`: optionally generate local Kokoro audio (requires uv); no arguments generates built-in audio. Never commit library audio or model weights.
 - `npm run serve`: serve the app at http://127.0.0.1:4173. Set `LIBRARY_DIR=<dir>` to serve another folder as `/library/`.
 - `npm run test:e2e`: Playwright tests at 390×844 and 1280×800. It starts its own server on port 4174 with `LIBRARY_DIR=test/fixtures/library`.
 

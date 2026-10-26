@@ -3,7 +3,7 @@
 **读一个停不下来的中文故事，顺手记住里面的英文单词。**
 Serialized Chinese stories with English target words woven in, plus recall exercises and next-day review. A static web app: no accounts, no backend, no AI at runtime.
 
-> **Status: pre-alpha.** The reader works: library (built-in stories and 我的书库), chapter reader, word cards with browser pronunciation, four modes (阅读, 英→中, 中→英, 迁移), next-day review, progress backup, and a local reading summary. All seven v0.1 acceptance steps pass. The first story is 《画皮》, a retelling of the 聊斋志异 tale. See [docs/SCOPE.md](docs/SCOPE.md) for what v0.1 will do and the check that proves it.
+> **Status: pre-alpha.** The reader works: library (built-in stories and 我的书库), chapter reader, word cards with local neural pronunciation, four modes (阅读, 英→中, 中→英, 迁移), next-day review, progress backup, and a local reading summary. All seven v0.1 acceptance steps pass. The first story is 《画皮》, a retelling of the 聊斋志异 tale. See [docs/SCOPE.md](docs/SCOPE.md) for what v0.1 will do and the check that proves it.
 
 ## Why
 
@@ -51,6 +51,29 @@ Using the `cliffword-annotate` skill, the agent then:
 5. tells you to run `npm run serve` and open it under 我的书库.
 
 Your book stays on your machine: `library/` is gitignored, and nothing is downloaded or uploaded. Only import texts you have the right to use.
+
+## English pronunciation
+
+Built-in words, inflected forms and example sentences ship with 24 kHz audio generated locally by [Kokoro-82M v1.0](https://huggingface.co/hexgrad/Kokoro-82M), using the American English `af_heart` voice at 0.9× speed. Click the existing 🔊 buttons to listen. Audio also works in browsers without speech synthesis. Closing a card, moving to the next review item, or navigating stops playback.
+
+The reader remains a static app with no runtime dependencies or API keys. No model is downloaded in the browser, and no text is uploaded. If a clip is missing or playback fails, the app falls back to the device's English speech synthesis; its quality and availability vary by device. The existing IPA may describe British pronunciation while the audio is American. Synthesized pronunciation, especially short words and homographs, still needs listening review.
+
+To add neural audio to an imported book, install [uv](https://docs.astral.sh/uv/getting-started/installation/) and run:
+
+```bash
+npm run audio -- library/<id>
+```
+
+This optional authoring command reads English vocabulary, original example sentences and tagged English forms; it does not read the book's source text. It downloads the pinned Python environment and about 340 MB of model/voice files on the first run, verifies the model files with SHA-256, then synthesizes locally on CPU. Later runs reuse intact clips. The model cache lives in `~/.cache/cliffword/tts` (`$XDG_CACHE_HOME` is respected); set `CLIFFWORD_TTS_MODELS` to override it. All generated book audio stays under `library/<id>/audio/`, which is gitignored along with the book. Refresh the reader after generation.
+
+```bash
+npm run audio                         # regenerate missing/stale built-in clips
+npm run audio -- content/huapi --force # regenerate all clips in one book
+```
+
+Audio filenames hash the exact trimmed text, so changing a word or sentence cannot play an obsolete clip. The manifest records voice/model settings and audio checksums. Built-in clips are committed so readers need no Python setup; models and Python packages are authoring tools only. Audio generation is optional and is not part of serving, importing or testing the app. Model weights: Apache-2.0; [kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx): MIT. No weights or third-party code are redistributed here.
+
+For a mispronounced homograph, add an exact-text IPA override in the book's optional `audio-pronunciations.json`, then rerun generation. For example, `{"tear": "tˈɛɹ"}` makes the standalone verb mean “rip”, matching its example sentence, rather than “a teardrop”. Overrides are passed as Kokoro phonemes and recorded in the manifest; changing one regenerates that clip. This does not alter the story or displayed IPA. Audio is currently keyed by text within a book, so different pronunciations of the same spelling in one book require a future sense-aware audio format.
 
 ## Develop
 

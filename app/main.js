@@ -3,7 +3,7 @@
 import { listBuiltIn, listLibrary, loadBook } from './data.js';
 import { createStore } from './store.js';
 import { checkMeaning, checkSpelling, hintFor, transferPrompt } from './check.js';
-import { speak, ttsSupported } from './tts.js';
+import { speak, stopSpeaking, ttsSupported } from './tts.js';
 
 const MODES = [
   { id: 'read', label: '阅读' },
@@ -58,6 +58,9 @@ function readHref(source, id, chapter, mode = 'read') {
 }
 
 async function render() {
+  stopSpeaking();
+  if (wordDialog.open) wordDialog.close();
+  if (answerDialog.open) answerDialog.close();
   if (scrollHandler) removeEventListener('scroll', scrollHandler);
   scrollHandler = null;
   const route = parseRoute();
@@ -218,6 +221,7 @@ async function renderReview() {
   app.replaceChildren(shell);
 
   async function show(index) {
+    stopSpeaking();
     const item = queue[index];
     if (!item) {
       shell.replaceChildren(
@@ -245,7 +249,7 @@ async function renderReview() {
     const form = h('form', { class: 'sheet review-card' },
       h('p', { class: 'fineprint', text: `${index + 1} / ${queue.length}${item.bookTitle ? ` · 《${item.bookTitle}》` : ''}` }),
       h('h1', { class: meaning ? 'lemma' : 'review-gloss', lang: meaning ? 'en' : 'zh-CN', text: meaning ? item.form : item.gloss }),
-      meaning && ttsSupported && h('button', { type: 'button', class: 'icon', 'aria-label': `朗读 ${item.form}`, onclick: () => speak(item.form), text: '🔊' }),
+      meaning && ttsSupported && h('button', { type: 'button', class: 'icon', 'aria-label': `朗读 ${item.form}`, onclick: () => speak(item.form, { book: parseWordKey(item.key) }), text: '🔊' }),
       !meaning && h('p', { class: 'hint', lang: 'en', text: hintFor(item.form) }),
       await reviewContext(item),
       h('label', { for: 'review-input', text: meaning ? '中文意思' : `英文（${item.form.length} 个字母）` }),
@@ -261,7 +265,7 @@ async function renderReview() {
       submit.remove();
       if (correct) {
         feedback.replaceChildren(h('p', { class: 'ok', text: '✓ 正确' }), h('button', { type: 'button', class: 'primary', onclick: () => next(true, given), text: '下一个' }));
-        if (ttsSupported) speak(item.form);
+        if (ttsSupported) speak(item.form, { book: parseWordKey(item.key) });
       } else {
         feedback.replaceChildren(
           h('p', { class: 'bad' }, '✗ 参考答案：', h('strong', { lang: meaning ? 'zh-CN' : 'en', text: meaning ? item.gloss : item.form })),
@@ -292,7 +296,7 @@ function renderSaved() {
         w.ipa && h('span', { class: 'ipa', text: w.ipa }),
         h('span', { class: 'saved-gloss', text: w.gloss ?? '' }),
         w.bookTitle && h('span', { class: 'fineprint', text: `《${w.bookTitle}》` }),
-        ttsSupported && h('button', { class: 'icon', type: 'button', 'aria-label': `朗读 ${w.lemma}`, onclick: () => speak(w.lemma), text: '🔊' }),
+        ttsSupported && h('button', { class: 'icon', type: 'button', 'aria-label': `朗读 ${w.lemma}`, onclick: () => speak(w.lemma, { book: parseWordKey(key) }), text: '🔊' }),
         h('button', { class: 'text-btn', type: 'button', onclick: () => { store.toggleSaved(key); renderSaved(); }, text: '移除' }))))
       : h('p', { class: 'notice', text: '在词卡上点“收藏”，单词就会出现在这里。' })));
 }
@@ -437,7 +441,7 @@ function openWordCard({ book, chapter, paragraph, p, index, seg }) {
   wordDialog.replaceChildren(h('form', { method: 'dialog', class: 'sheet' },
     h('div', { class: 'sheet-head' },
       h('h2', { lang: 'en', class: 'lemma', text: word.lemma }),
-      ttsSupported && h('button', { type: 'button', class: 'icon', 'aria-label': `朗读 ${word.lemma}`, onclick: () => speak(word.lemma), text: '🔊' }),
+      ttsSupported && h('button', { type: 'button', class: 'icon', 'aria-label': `朗读 ${word.lemma}`, onclick: () => speak(word.lemma, { book }), text: '🔊' }),
       h('button', { class: 'icon close', value: 'close', 'aria-label': '关闭', text: '✕' })),
     h('p', { class: 'ipa-line' },
       word.ipa && h('span', { class: 'ipa', lang: 'en', text: word.ipa }),
@@ -450,7 +454,7 @@ function openWordCard({ book, chapter, paragraph, p, index, seg }) {
     word.example && h('h3', { text: '英文例句' }),
     word.example && h('p', { class: 'example' },
       h('span', { lang: 'en', text: word.example }),
-      ttsSupported && h('button', { type: 'button', class: 'icon', 'aria-label': '朗读例句', onclick: () => speak(word.example), text: '🔊' })),
+      ttsSupported && h('button', { type: 'button', class: 'icon', 'aria-label': '朗读例句', onclick: () => speak(word.example, { book }), text: '🔊' })),
     errors > 0 && h('p', { class: 'fineprint', text: `答错 ${errors} 次` }),
     !ttsSupported && h('p', { class: 'fineprint', text: '这个浏览器不支持朗读。' }),
     h('div', { class: 'sheet-actions' }, saveBtn)));
@@ -567,11 +571,15 @@ function renderTransfer(book, chapter) {
         feedback.replaceChildren(correct
           ? h('span', { class: 'ok', text: '✓ 正确' })
           : h('span', { class: 'bad' }, '✗ 答案：', h('strong', { lang: 'en', text: prompt.answer })));
-        if (correct && ttsSupported) speak(word.example);
+        if (correct && ttsSupported) speak(word.example, { book });
       });
       return h('li', {}, form);
     })));
 }
+
+wordDialog.addEventListener('close', stopSpeaking);
+answerDialog.addEventListener('close', stopSpeaking);
+addEventListener('pagehide', stopSpeaking);
 
 store.noteVisit();
 addEventListener('hashchange', render);

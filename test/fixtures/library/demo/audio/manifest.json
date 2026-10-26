@@ -1,0 +1,28 @@
+{
+  "settings": {
+    "model": "Kokoro-82M-v1.0",
+    "engine": "kokoro-onnx==0.6.1",
+    "voice": "af_heart",
+    "lang": "en-us",
+    "speed": 0.9,
+    "sampleRate": 24000
+  },
+  "files": {
+    "8ace3c4bc48ddb9ddbcaaa0662636a7088b0bdf8582b098ea55d47837c0e528c.wav": {
+      "text": "I trust him to keep his promise.",
+      "sha256": "26757a13cb3b2b07245f06a3dbe6185e99d28f77f7a6df25df113f9e357b686e"
+    },
+    "84b88ca856f1ebc2d897b1f6d14913dfe136e2be2e03426cda6a839d588749b9.wav": {
+      "text": "She wrote a long letter to her grandmother.",
+      "sha256": "1205e118a9899bba5d485702083acfad0c283c2975e9de008350ff409eb58897"
+    },
+    "f80105efab6d863fd8fc243d269094469e2277e8f12e5a0a9f401e88494f7b4b.wav": {
+      "text": "letter",
+      "sha256": "9ae198508f1d58957d8818e711b7171f16caaf544a19acb92c6dceaafcfb50f5"
+    },
+    "f796e2f28ae5811737ccb8233f34e09f8bb75d2511a135543d1ca37be0199a1d.wav": {
+      "text": "trust",
+      "sha256": "3aa62d73ddb868f7b2099113b3d8012a3ce17da50ca3ad996f3c4c961a9d9796"
+    }
+  }
+}

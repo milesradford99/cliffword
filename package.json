@@ -15,7 +15,8 @@
     "import": "node scripts/import-text.mjs",
     "serve": "node scripts/serve.mjs",
     "test:e2e": "playwright test",
-    "words": "node scripts/words.mjs"
+    "words": "node scripts/words.mjs",
+    "audio": "node scripts/generate-audio.mjs"
   },
   "devDependencies": {
     "@playwright/test": "1.64.1"

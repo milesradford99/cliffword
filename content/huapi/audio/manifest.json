@@ -1,0 +1,333 @@
+{
+  "settings": {
+    "model": "Kokoro-82M-v1.0",
+    "engine": "kokoro-onnx==0.6.1",
+    "voice": "af_heart",
+    "lang": "en-us",
+    "speed": 0.9,
+    "sampleRate": 24000
+  },
+  "files": {
+    "372e0cacda9be5f4a8d47158b14065c4df4cedfaa94fad3da988ae146e50fe72.wav": {
+      "text": "A mysterious illness spread through the village.",
+      "sha256": "f45b03100039404fc8a75134bdd4fc55a04f988e17ee8776ff08e14aeeb1a097"
+    },
+    "850fdc4c90b6a12f11e94673998e8c001e33f52be0f49749956d6a64bbf8477c.wav": {
+      "text": "A stranger stopped me to ask for directions.",
+      "sha256": "0f9b069cdae3aac7cc025c2d88292f310d2d89bf688e00bc0b8741b3cdf63eee"
+    },
+    "c83feca444fce17cd779e57ead1bd26371efe13b1ab888951ea6c1f6ea2d58c2.wav": {
+      "text": "After weeks without work, he was desperate for money.",
+      "sha256": "88b66c0ba5b3f1142a7078c1141beaace1109232e745e26d43a8b40565def265"
+    },
+    "91afe6e6f893e20ae52c9cb8367f1a3b7574772f7349fc388e5d5b9be536c8ec.wav": {
+      "text": "Be careful not to tear the paper.",
+      "sha256": "653b967c64b4e497cd36cf40611707e4601c7409b598ddf46f474ef5273deb8d"
+    },
+    "c36c8f816f4801335bd0aaaa35272c22c2e14473194a4e430f4a8e08f0d91f86.wav": {
+      "text": "Call the police if you see anything suspicious.",
+      "sha256": "730b1652ddd9eabaa13b2a960192cd9f6ab50381df5ce5ba6213df791ccbd855"
+    },
+    "6554160caaefc9c1870b5993c953d45f78cc52f82f1cee2816c3f85b186dd6c4.wav": {
+      "text": "Clean the brush before the paint dries.",
+      "sha256": "7aca7821669c9f22c4003abca81ec2619a40961261e75b41a8d37aa16158eba9"
+    },
+    "f98695f548f589696ec0422d357e42d3ece72205462aaa17a1913a45128d296c.wav": {
+      "text": "Don't hesitate to contact me if you have any questions.",
+      "sha256": "ba517cc759555f453527ed054cb8d21b97c9c3ba7ed7b8f8cefb99e385a6e003"
+    },
+    "3a78e3434a3ae145d73bf79b2866d19b6744db243b8a70b660964b48dde85cef.wav": {
+      "text": "Experts warn that sea levels will continue to rise.",
+      "sha256": "5639c9aa6f02e8f17b84dd8a750abb7a929fa9904ae89f69ea3eec93ea0a4df0"
+    },
+    "a9e6c5fbddb3bfc131e779883194bd96f0b6b9c61a4d498d2da6ae0bd5373a81.wav": {
+      "text": "Grief can affect both the mind and the body.",
+      "sha256": "816b7d2f6a209e1e46175de3ec192b2fc693685448c47cf19353f972a5fcdcef"
+    },
+    "ec25ba0e90fbcd65a2ccd13a9dbd32fa1035b87ee59b59feeb897e3da9d33690.wav": {
+      "text": "He carried a bundle of old letters under his arm.",
+      "sha256": "34660581b4c550afed39ab559368adbdd79d3dc254011820f7953b06674a3dee"
+    },
+    "b8e1515170122a51a5c3b31f4b02a756b3300e78ecb6c1c5c841265fb8e65bc9.wav": {
+      "text": "He had to beg his parents for a second chance.",
+      "sha256": "a3ca1723e39fa98b0ef49cb7d4571c69c134cf6e7a92368d5cc3a97bb4265c4a"
+    },
+    "e2109609b54615c97f3628879a82b45c4a2d139f9704f55501f4a6cb07dcc6f6.wav": {
+      "text": "He wore a hat and glasses as a disguise.",
+      "sha256": "bdd01d2317616dac65893eb5418e09dfe393aa28dbd64344b3ad135d65f22066"
+    },
+    "75f2b3793ecc15de0eea3c40f8c59dda5bc09e7bd06aefa55b9c9b0e8f15292f.wav": {
+      "text": "Her hands began to tremble as she opened the letter.",
+      "sha256": "076df5a885637c20e43afce6f7df4ffc404fb30b51c2a7eba530a8799151ced9"
+    },
+    "a26744e06a2b83160e5d5f652a186ed2efb96b188036502d919f48e2332b8bde.wav": {
+      "text": "It is hard to resist the temptation to check your phone.",
+      "sha256": "42298c5308c02d358838d0c4f745442604fd2f8bdfb16bb8b8a9019985f44483"
+    },
+    "21a5f00c435c1011eda8461114827ad310bc50709aadf9cd4a9d58c89163109f.wav": {
+      "text": "My only regret is that I didn't start earlier.",
+      "sha256": "8dedc53050a8c37f646a9c5cf1510377cf92e2b0db41fea85c6b3b9e836aba64"
+    },
+    "de0dbc10a80a904d86b53aa4f3eba4c0562fa8043c4cb265d27299abb3637ca5.wav": {
+      "text": "Police managed to capture the suspect near the border.",
+      "sha256": "4f96765ad457a786e9555dee8a5a64f6906ddff90c0a036a6336edc74f1b6adc"
+    },
+    "58251497ddffe0233b21da4a719d6cbe364ac1d909ec4ffc694ef0623064a0f3.wav": {
+      "text": "She is a respected scholar of Chinese history.",
+      "sha256": "e9b063c801c5f82e4c8f68671ce7da046975e66a8fd78b70a01776a643533e21"
+    },
+    "9d83ad86383e6670475270b868e1755636ddc0083c21f2806d279267422e554d.wav": {
+      "text": "She peeked at the last page of the novel.",
+      "sha256": "fa4d420b0b451adb0e939694260256671cf102ae93ddeeafc91cae232fa25ff4"
+    },
+    "4bd6a95c3e9f156b2e1a29c67b708fbf6f852b39fc6324e8bcfeaa549718c7a2.wav": {
+      "text": "She tried to conceal her disappointment.",
+      "sha256": "0ba70fcfcab12513a0464cecfe80e53109d2cb17ad5cd96c56bfffbffc5e75fa"
+    },
+    "67b673ad704881fb696764c7e1944126b0924cb6eb172ca7271aca81eb3d59f4.wav": {
+      "text": "Success often requires personal sacrifice.",
+      "sha256": "6fefe171b8c0a323d43b05ccd8037d6b6f946e44ac0153ee6cac3fc146d31537"
+    },
+    "35fbae16108122b59ad213a7e495e8717dd6fb1a52f7e5ecf62e280120f17563.wav": {
+      "text": "The advertisement was designed to deceive customers.",
+      "sha256": "0f279c17f21598884c4ed528b88f551934b62d6701534fca96feb3038f7f21c7"
+    },
+    "281353af82f677bf36ee3ca14b94eed1ce2f1b71f07b22579cc5cb675f515faf.wav": {
+      "text": "The charity provides shelter for homeless families.",
+      "sha256": "becee0ce52f725f4cd75d0d25ef770d9fd2476aa648eace4fdc47ecf0f9b2d69"
+    },
+    "75d82d3dad8d5d97d9fb4c2d02467652a267587df1e7ee69da778ce5913e59c1.wav": {
+      "text": "The children drew a monster with three eyes.",
+      "sha256": "15d9da2fa49151cb9906b1f4f3fe2e924210b62855070356dcaf98bd7ef42b29"
+    },
+    "76d6d505719cc64ad8b2b1381de9c9925f008561fea8ad70cdf91a622cc3d7de.wav": {
+      "text": "The detective examined the corpse for clues.",
+      "sha256": "06d8f24b8459929eb77d69c344fb70db514196909ca7a2920b16b7fc4b812305"
+    },
+    "a9d3dbf6ff40f1fb9881baa5d49c571119cdacd31f4e17e41359e43ce449708b.wav": {
+      "text": "The film is a simple story of good against evil.",
+      "sha256": "45acc06830edde0ba7b3d3fd710a85a83ecb1eb4de1a725b7c36bd64bf8440de"
+    },
+    "7afef3a81942e256222abdc6d87ea0518c76a089b3e39c4c8feb3f090b0089e7.wav": {
+      "text": "The government hopes to revive the local economy.",
+      "sha256": "11162c91d3b9369e3a3348ae6691b696f2065b90e3ee45423c23f775a6b918b8"
+    },
+    "64cda6c5e890b9ca8d3d24501819fb76fbdbe0faec2db044ba8bba288442d73a.wav": {
+      "text": "The manager tried to humiliate him in front of his colleagues.",
+      "sha256": "18a8e935f6c357929cea484c93ed6950264f5958317f0bf92e4b5476b8eb8efc"
+    },
+    "9caff51c421e0247cd2ac483c0eb2c031c096dd2f53742e1dcf5b55507fda3c6.wav": {
+      "text": "The museum displays a sword from the Ming dynasty.",
+      "sha256": "5fe10ece1144bb05bae387582938835e37eee39049d6c97c39c3021906729388"
+    },
+    "e9bb3335adb50ac20d3e85d54a34e2ee589de9b6668d4fef2cf47948526e53a6.wav": {
+      "text": "The plane seemed to vanish from the radar.",
+      "sha256": "072ecbbe70f03ed7bbd41df7750cc67e303f5acb49a980c8b8c7b7024b820647"
+    },
+    "f9501811858e61ca2a184fb442026cf18b2a08e6d7be2572afd558703c87d657.wav": {
+      "text": "The two companies are in fierce competition.",
+      "sha256": "68d869c47e4b5d78dc4288a440734d5225775ea4543a0379e60c10af88f9c2e9"
+    },
+    "0bb80e0cf0f3b152d95a01d54d1b6bdd38a84fe15bbb2cccd3704d9510c7e0ff.wav": {
+      "text": "Thousands of people had to flee the flood.",
+      "sha256": "a08b8336eb4d86ef50fc1348596c961e48f3e68e555320157fa92f245961bab7"
+    },
+    "cfc900887a2e57d7555c5dd985640561761d8912df8888e4ccee14867ce115c7.wav": {
+      "text": "We left the hotel at dawn to avoid the traffic.",
+      "sha256": "3af28f8300e80238955b3c282bd8ce71f797fb879959bee0d5355951c377f40c"
+    },
+    "9ba6403edf7bfde6f145baaa8cc3a86dd25e319d56ba0d9f5db8ccb1e16e58f7.wav": {
+      "text": "You cannot ignore the problem forever.",
+      "sha256": "71e2cb7235546286bdf8b5eeee482f7362105cd339b4d07de64790464e8ef686"
+    },
+    "e80f71a8d731192771d8c80726975194b2f4324df868419394ae7422b1c260f0.wav": {
+      "text": "beg",
+      "sha256": "518ab041d3a5be6d51ea0ef4c58659345a31fff0eafa9efc776fe237e547fa5d"
+    },
+    "6787532a8d06be3396bc9a06138d873e55c3ebed9bd37660d045839b382956af.wav": {
+      "text": "begged",
+      "sha256": "cf73c0b300a0463f99d4444344b69133755179c6754e081545c71cf0a0947e4a"
+    },
+    "05d155faec1934a624390735af8cba6ce10dc068d2b66d49a08463105757345f.wav": {
+      "text": "begging",
+      "sha256": "3c5e50c6b309c3d4c9518e16b950d371c1be64c960d7c1d0628a40cc33c0ac74"
+    },
+    "029f33c2a6a1143cf125d495f861e073528ebf1e261e88201d0cc58d22d05987.wav": {
+      "text": "brush",
+      "sha256": "84b4db07c56ea5ff8abf110f1a7668e859f38e6b9e58c7cb8e1edb8b04f6f34d"
+    },
+    "1e6ed65d77d6364eeaed5a745ba5c4985ae2b700dd85d7cf7f027bdf294a33fc.wav": {
+      "text": "bundle",
+      "sha256": "82efda2ab1409d0f6d9daa4fec3f03195be2fdadceab3574c02799798c484286"
+    },
+    "460ee6aa3a80359181b794cc31a7185addba77626e9f719c10e3c8efb8668a1d.wav": {
+      "text": "capture",
+      "sha256": "ba671f165ad1e58cd68a4e1ea814289dc45105b34b76b825e0b3185587afab64"
+    },
+    "b737815f5ca9697f685dfe2b5fe1f7b12a180562f97da5a72e90eaedd9890876.wav": {
+      "text": "captured",
+      "sha256": "237b37ac32a68caad9e08b75a2b1ef8dbc6a831ee4e04a5e911bfa4fbc6a3385"
+    },
+    "7fb137e027d85dc84ebd33aea51742753de14acc4073f85df7ed9f65f5453d61.wav": {
+      "text": "conceal",
+      "sha256": "8703ec7db3e1ed7ed3f522b6bcf272b66657bc1dd2db4a99a89076058d989c6d"
+    },
+    "9dd767f35364203103a7e9ca5b97e883205c0832e3c89113fc911cfe45cce779.wav": {
+      "text": "concealed",
+      "sha256": "fa81d2b6ac38e6ad893526ab53d5599105783fd211ded1afdecf03bf9cc4869d"
+    },
+    "42c75396af1d6fe606131f7da21191ff3ef10f5a0cda55bf3246d868341de540.wav": {
+      "text": "corpse",
+      "sha256": "06c3ab710e3cb55bf1a214528ffa4e9bbdf71a9fcd26b959dc85b5e51421f187"
+    },
+    "8326e09ce4e90a419a510ed74895cf6713f2fb42b0b3ffc126527ec2b9e95872.wav": {
+      "text": "dawn",
+      "sha256": "c612f54317a37220a0849934fbb5b60e849625e79576b7f38406c943e641499e"
+    },
+    "4f2224ca4f0897e66c0bea7cee7e3166175831f61b45ec023a3481bf2ebf1b9b.wav": {
+      "text": "deceive",
+      "sha256": "92a61d4b26a9039a642b4be2300fae13f002e88ccbeadc54b1f83b024f898c21"
+    },
+    "e852f2156f860fabd226d407efe90e28f742e1711c3abee1bfe63767652e546b.wav": {
+      "text": "deceived",
+      "sha256": "bc59c75aae81da32449b44e0d6ba4041d7b84352a1cbe867f9fc041d9f23727e"
+    },
+    "5d3082f6a1fd718c68ec37a83c6c4c9a34f80ab64b3dc13a90ab1439b14a5282.wav": {
+      "text": "desperate",
+      "sha256": "a326546d9aa03277f030b3b2392153fddc9267cd0f080418f915a78236b27b3e"
+    },
+    "83180b745cbfaa82c9d056446b5656446f033296674eb2dda3193d00b8620407.wav": {
+      "text": "disguise",
+      "sha256": "da7eedefcc626f1fca38227a1cd878965b946e12c22a86f42d585f9089c2de1f"
+    },
+    "b5c1fb2efc6d6b4674c2fdcc48ce01b43a3b7c03763c0c3355de0099ee0f8c73.wav": {
+      "text": "evil",
+      "sha256": "1858ebbfc6530c85a4dabfdcb9b22ecaa7fea9c9136a3c0a8c6013346ed0ada2"
+    },
+    "c0eb0109f31b701a019a9e0ad8b4ca2636e9f8b2b096f81ec8b1a6f71f51f8b9.wav": {
+      "text": "fierce",
+      "sha256": "ae2e9970ae11f62a8261875b0dc4a7d95b67bbe1cfcac32821447ba7348eeb5f"
+    },
+    "af4229a480db1dec499eaf9ec0dbc02d23e57bee871733e077d9c51955ac5e4b.wav": {
+      "text": "fled",
+      "sha256": "2b3d04cfa5cc360ea7d323e2ae0ae7155ee7dbda514ee18a2dfca31c12305e96"
+    },
+    "d15a1edfb23cdba76277dca7c2569ada4414da6cea1a57980bad4353017a8975.wav": {
+      "text": "flee",
+      "sha256": "43a3926e9b9d2126976a900079afd6addf58f2ab5fef3fd252c75ee778472427"
+    },
+    "63145a8fb4f0d932429064a38b6a17e1ccc89ffe6440ed957b470c22a6cc9d8c.wav": {
+      "text": "grief",
+      "sha256": "22b23001037bb0d77df618450310df475980ac1b3f50d9444a96a39ded27f87e"
+    },
+    "ce8a390a4a5b7c85047f7be5915b4025e920d5b9c5df7d6597c38cbeadf63c68.wav": {
+      "text": "hesitate",
+      "sha256": "8d7e0b688ab4ce4c16edf58f01b0694476715079fef18207607f28a463fd6c3a"
+    },
+    "c90a459605b47566f66943280b430b67a9ffb14495104dadeb35ab543c487e11.wav": {
+      "text": "hesitated",
+      "sha256": "fa0d795420cbac6e52cec3933667c9a2e79636d11835e4912c30d549e75215cd"
+    },
+    "2722a61f27b08f78ec3bc846559084810f5d18002317a8c25a05519c7ce1d869.wav": {
+      "text": "humiliate",
+      "sha256": "d5cc6d689269a41483c34942e0d981dd9498f53526ad3f1479f8a9cea04817ef"
+    },
+    "401dfa5fcc6debbffa7d0c5a8fb6e7eabf046d85d82c38f18b11095b2e776e21.wav": {
+      "text": "humiliated",
+      "sha256": "1f6eaf569192dd7845dd7aee460df4a1ac1d163f1ce8366e38110a34e624f7c9"
+    },
+    "5f0af516936c6ab13dfce52362f84a3c0aa8d87aca8f2bcaf55ad4e1e0178034.wav": {
+      "text": "ignore",
+      "sha256": "89855237758e5aa51ac1ea67ad07577c466991ff43b910e7140622b01a87cfb0"
+    },
+    "3514cf816e5407a39cb7a1c1e1243f176dda121e06398a8934edb1dc426b0b34.wav": {
+      "text": "ignored",
+      "sha256": "b6ebdbd75200307a591cad8e50d80abe84a5043fc4300baf9a231479d212e6d2"
+    },
+    "beaafa510bcc774b1be0c7f3fbb033017cd97f2c73455ec2d7747c2e993759b5.wav": {
+      "text": "monster",
+      "sha256": "e15eb7c71aad619c38630d2ff2cda263f3f1470d3c24530ecaa50f619c1aaf5b"
+    },
+    "da7cc64ae8ad7e0b926b366259b43fdc92dae8c483214a5665b3711a59d38255.wav": {
+      "text": "mysterious",
+      "sha256": "3d0b01a2ab8c6da7acf2758c8cdd145006045d5a4070333f90ccf9be90c0613b"
+    },
+    "1ce8980ebe0167061739e034959975a6b21449d16a2e5a586ac1e51ac54f44ba.wav": {
+      "text": "peek",
+      "sha256": "819fe34f41635e3d8e4dbdfd9613ad7469cfca2f7650e32259864edd66b0452e"
+    },
+    "984db0b7dbc4dab40ff4e0e7569c814e14ca5d1aa7af9226047d69d16c301721.wav": {
+      "text": "peeked",
+      "sha256": "51d1ba557ddfc76a140c76624a6e9dd16af9b3bf5945a882480b8397d041317c"
+    },
+    "d5259acec0d80c4fe1347fc3aa805624b6f37a052d24018a8c38f3c2e9807d21.wav": {
+      "text": "regret",
+      "sha256": "0f8cc6ec2329f755b26871b570c0b184d24ee4c9daae9ae0088a72e812327f02"
+    },
+    "34f54b279dd0fa8b6fd6add091f024cdea7fc58afc62e3b3df1debd220082695.wav": {
+      "text": "revive",
+      "sha256": "75a352f1f8047fb36207bc7a6dc96d5bdcfc825e3a2bb0e8ee60634503d330e1"
+    },
+    "eb1c7f738bbe6d0fd106bf4a2fe976009eaeadaa7b25ce2fc8026197934d0cb9.wav": {
+      "text": "revived",
+      "sha256": "cccc3dceb72fb4c84ab48b105977148377286b70d064161c06411bbe1bce69e9"
+    },
+    "d17bd922ea9dd14143a1c40cffad198af1314d34b49c819d47454114cb4bc224.wav": {
+      "text": "sacrifice",
+      "sha256": "1d27baa0751398e6cbc6dd07552d9050637f166085fe27bcbaeaa9fb7c33c40f"
+    },
+    "e3f48726b892403e0552010bd81debbb10539350fe15d36d9b90e5e682faeb1d.wav": {
+      "text": "scholar",
+      "sha256": "68c41437578c3c1f9987731d11ab1dd0f16609ae270c658b883a1bdfb7ac0002"
+    },
+    "cd96b5def4ed2b502ab6cc6ce3c04ddd56e194c70949f750b0ab29f3e5ce3dda.wav": {
+      "text": "shelter",
+      "sha256": "76bbd50883ab16adb1a54dbe1e675d1b3d226d806fc0637ab07698db26409c94"
+    },
+    "8aca4f36774f82a67c507cb9c96679482e2cc767f2d38502269557a566b092fb.wav": {
+      "text": "stranger",
+      "sha256": "639d9806936a34da3ed4af68dd716bca7ebae54286ee10db6d2fb8e4dd6e2816"
+    },
+    "80d8b1e97421d004d7e7c7e40200dc9247e3c2c4e97d8e4f04d970432ac475af.wav": {
+      "text": "suspicious",
+      "sha256": "f5f554b17f50ed7e78cf4ffee1c28493da8b248f39b7fe0a765c6195496be268"
+    },
+    "a44c47b1ee24665db1a36438203d8f9617a9889f9c34d3f2aa004ccbba672116.wav": {
+      "text": "sword",
+      "sha256": "c2b458cce955e30ab9581c490183b4fb471bfbebb35a241d337c6e019a9670e2"
+    },
+    "4f8ac0b8c10df0c4d952dace6e1d4e835436664b90aa584d7e3d3570a57dc6d6.wav": {
+      "text": "tear",
+      "sha256": "73759398e0cee002b0bf1db2ae518b6c30bc0eb53fba8930e57e7b3b53a9da4a",
+      "phonemes": "tˈɛɹ"
+    },
+    "20dd3be4a3b151d6c462944454184812250ddbb56ce8d70491e49637d4d3f2b4.wav": {
+      "text": "temptation",
+      "sha256": "b721b9ff2703ac3b412e8c1ad6e5d3971d441c03a9134d7bd23735a82c128aa0"
+    },
+    "2ef04dc6f493ba96f776a56664fee3652b68fd46dce1cad9e99068b61546b13c.wav": {
+      "text": "tore",
+      "sha256": "6396da34a48303627fa2c09c06ffebfed5360ba95fe666c14459ecb3fb4ff036"
+    },
+    "a0a2a7470c13ca4cc938fbc451a6972737e08c5fcb82805d7b757f60f93dcbf2.wav": {
+      "text": "tremble",
+      "sha256": "ce4ca48ed6667087e01a217e6aab69c0219266a95940a13572802936ab76687f"
+    },
+    "54e88e659d61af0b3cd8d644342432ef64e7480016aad43659c3d5a2c4d5c52f.wav": {
+      "text": "trembling",
+      "sha256": "2bd6418010023b8e7787a1e7393d25629f5c1c7f29c42a5986ee357765efe84b"
+    },
+    "93ce248b8b9c8758eb556d6a9a17646e8ce48bf78d386cf47993e5f10ff19c0b.wav": {
+      "text": "vanish",
+      "sha256": "703bd2f627ef47bf779e574461641d2b9886d413dd0af525fa3b32ee032d70aa"
+    },
+    "81ebed6136e7d6990ae66621dfc1a74282efc463c95b5317ef4383087b79e066.wav": {
+      "text": "vanished",
+      "sha256": "04207c8bb41e67292e6fb3acb0b6981c5c899abfaa9421a9e07a1c666fe69675"
+    },
+    "aa63925edf225e26d79eca9cebc7639de6dfe576d2d9e4183e162f99e38be7ee.wav": {
+      "text": "warn",
+      "sha256": "193a99a74e3c6ce07e7fd3d1a1650821bf15eb601590cc76166bcab9fa4460e7"
+    }
+  }
+}

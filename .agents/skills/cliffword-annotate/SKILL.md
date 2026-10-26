@@ -75,7 +75,8 @@ For chapter `<ch>`:
    - chapters annotated, the total number of distinct words, and the range per chapter;
    - how many glosses needed a `glossNote`;
    - anything skipped and why.
-3. Tell the user how to read it, and offer to start the server:
+3. If `uv` is available, run `npm run audio -- library/<id>` to generate local neural pronunciation for the vocabulary, occurrence forms and English examples. This downloads model files once, then synthesizes on the machine; book text is never uploaded. If `uv` is unavailable or generation fails, report that the book currently uses the system voice and give the command for adding neural audio later. Never commit the audio under `library/`.
+4. Tell the user how to read it, and offer to start the server:
 
    ```bash
    npm run serve
