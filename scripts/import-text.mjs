@@ -1,9 +1,10 @@
 // Splits a local text file you already have into chapters under library/<id>/.
 // The text is copied as-is; nothing is fetched, and library/ is gitignored.
 // Usage: npm run import -- <file.txt> [--id my-book] [--title 书名] [--category 分类]
-//                          [--density 2-6] [--force]
+//                          [--density 0.5-1] [--force]
 //        npm run import -- --reindex   (rebuild library/index.json after editing a book.json)
-//   --density: on average one tagged word every <min>-<max> sentences.
+//   --density: on average one tagged word every <min>-<max> sentences. The
+//   default, 0.5-1, also needs a tagged word in every sentence.
 import { readFile, writeFile, mkdir, rm, access, readdir } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -105,7 +106,7 @@ export async function importText(file, { id, title, category, density, libraryDi
     title: title ?? basename(file, extname(file)),
     ...(category ? { category } : {}),
     level: 'IELTS',
-    density: { ...DEFAULT_DENSITY, sentencesPerWord: density ?? DEFAULT_DENSITY.sentencesPerWord },
+    density: density ? { ...DEFAULT_DENSITY, sentencesPerWord: density, everySentence: density.max <= 1 } : DEFAULT_DENSITY,
     chapters: entries,
   };
   await writeFile(join(bookDir, 'book.json'), `${JSON.stringify(book, null, 2)}\n`);
@@ -144,7 +145,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.exit(0);
   }
   if (!file) {
-    console.error('Usage: npm run import -- <file.txt> [--id my-book] [--title 书名] [--category 分类] [--density 2-6] [--force]');
+    console.error('Usage: npm run import -- <file.txt> [--id my-book] [--title 书名] [--category 分类] [--density 0.5-1] [--force]');
     process.exit(1);
   }
   try {

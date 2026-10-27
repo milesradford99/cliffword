@@ -18,7 +18,7 @@
 - **Learning state** in localStorage: reading position, saved words, answers, errors, review due dates. Next-day review of errors and saved words. JSON export and import.
 - **Engagement signals**, kept local only: chapter completions, voluntary "next chapter" clicks, return-visit days. They can go into the export for a pilot, but are never sent anywhere.
 - Works on mobile and desktop. No build step, no backend, no accounts, no AI at runtime.
-- **Your own books, annotated by your own agent:** `npm run import -- <file.txt>` splits a local text file into chapters under `library/` (gitignored). The `cliffword-annotate` skill (Codex: `.agents/skills/`, Claude Code: `.claude/skills/`) then has *your* agent write an annotation file per chapter: IELTS words by default, at a density of one tagged word every 2–6 sentences. It runs the validator until the result is clean, then makes pronunciation clips locally with Kokoro. The reader shows these books on the 书架, in the category 我的书库 unless the reader picks another.
+- **Your own books, annotated by your own agent:** `npm run import -- <file.txt>` splits a local text file into chapters under `library/` (gitignored). The `cliffword-annotate` skill (Codex: `.agents/skills/`, Claude Code: `.claude/skills/`) then has *your* agent write an annotation file per chapter: IELTS words by default, with at least one tagged word in every sentence by default. It runs the validator until the result is clean, then makes pronunciation clips locally with Kokoro. The reader shows these books on the 书架, in the category 我的书库 unless the reader picks another.
 
 ## Non-goals
 

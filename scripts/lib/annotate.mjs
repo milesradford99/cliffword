@@ -53,18 +53,33 @@ export function applyAnnotations(paragraphTexts, occurrences = []) {
     return { segments };
   });
 
-  return { paragraphs, errors };
+  return { paragraphs, errors, spans: kept.map(({ p, start, end }) => ({ p, start, end })) };
 }
 
 // Sentence ends: Chinese or Western terminal punctuation, with any closing
 // quotes or brackets after it. A paragraph break also ends a sentence.
 const SENTENCE_END = /[。！？!?…]+[”’」』）)"']*/;
 const HAS_TEXT = /[\p{L}\p{N}]/u;
+const TEXT_CHAR = /[\p{L}\p{N}]/gu;
+
+// Each sentence with its paragraph, character range and how many letters
+// or digits it has (punctuation and quotes don't count).
+export function splitSentences(paragraphTexts) {
+  const out = [];
+  paragraphTexts.forEach((text, p) => {
+    const ends = new RegExp(SENTENCE_END.source, 'g');
+    let start = 0;
+    const push = (end) => {
+      const t = text.slice(start, end);
+      if (HAS_TEXT.test(t)) out.push({ p, start, end, text: t, chars: t.match(TEXT_CHAR).length });
+      start = end;
+    };
+    for (let m = ends.exec(text); m; m = ends.exec(text)) push(m.index + m[0].length);
+    push(text.length);
+  });
+  return out;
+}
 
 export function countSentences(paragraphTexts) {
-  let n = 0;
-  for (const text of paragraphTexts) {
-    for (const part of text.split(SENTENCE_END)) if (HAS_TEXT.test(part)) n += 1;
-  }
-  return n;
+  return splitSentences(paragraphTexts).length;
 }

@@ -82,10 +82,10 @@ library/<book-id>/
 `density` says how often a tagged word appears, relative to chapter length:
 
 ```json
-"density": { "sentencesPerWord": { "min": 2, "max": 6 }, "maxPerWord": 6 }
+"density": { "sentencesPerWord": { "min": 0.5, "max": 1 }, "maxPerWord": 8, "everySentence": true }
 ```
 
-On average a chapter has one tagged occurrence every `min`–`max` sentences, so a chapter of 120 sentences needs 20–60 tags and one of 600 sentences needs 100–300. `maxPerWord` caps how often one word is tagged in a chapter, so a long chapter needs more distinct words too. Set it at import with `--density 1-2` (one every one or two sentences); `--category 小说` sets the category. After editing `title` or `category` in `book.json`, run `npm run import -- --reindex`.
+On average a chapter has one tagged occurrence every `min`–`max` sentences: by default between one and two per sentence, so a chapter of 120 sentences needs 120–240 tags. With `everySentence`, each sentence must also hold at least one; sentences with fewer than 4 letters or digits (嗯。, “谁？”) are exempt and aren't counted. `maxPerWord` caps how often one word is tagged in a chapter, so a long chapter needs more distinct words too. For fewer words, import with `--density 1-2` (one every one or two sentences on average); any range sparser than one per sentence sets `everySentence` to false. `--category 小说` sets the category. After editing `title` or `category` in `book.json`, run `npm run import -- --reindex`.
 
 Sentences are counted on `。！？!?…` (with any closing quotes) and paragraph breaks. The older `{ "min": 8, "max": 15 }` fixed word count is reported as an error with the replacement to use.
 
@@ -109,7 +109,8 @@ An occurrence can also carry `glossNote`: a short reason the gloss differs from 
 `npm run validate:library` checks imported books with the same rules as built-in stories, with three changes:
 - no total word range;
 - no hook markup;
-- each chapter's tagged occurrences must match its density, and no word may be tagged more than `maxPerWord` times in one chapter.
+- each chapter's tagged occurrences must match its density, and no word may be tagged more than `maxPerWord` times in one chapter;
+- with `everySentence`, every sentence of 4 or more letters holds a tagged word (the error lists the bare ones by paragraph).
 
 It also reports anchors that aren't found or that overlap, and chapters that aren't annotated yet.
 

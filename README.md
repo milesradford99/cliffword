@@ -45,7 +45,7 @@ Give your own Codex or Claude Code a book you have as a local `.txt` file, and i
 
 Using the `cliffword-annotate` skill, the agent then:
 1. imports the file into `library/`;
-2. picks IELTS words from the bundled word list at a steady density: by default one tagged word every 2–6 sentences, so a long chapter gets proportionally more. Ask for another rate (“每一两句一个词”) and it imports with `--density 1-2`;
+2. tags IELTS words from the bundled word list in every sentence: by default each sentence holds at least one English word (only very short ones like 嗯。 are exempt), so a long chapter gets proportionally more. Ask for fewer (“每一两句一个词”) and it imports with `--density 1-2`;
 3. writes small annotation files next to your untouched text;
 4. checks every word, form and Chinese meaning against the dictionary until the book passes;
 5. generates pronunciation clips for every word, form and example sentence with Kokoro on your machine (`npm run audio -- library/<id>`, see below);

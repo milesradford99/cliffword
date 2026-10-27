@@ -74,10 +74,10 @@ test('reports anchors that are missing or overlap', () => {
   assert.ok(errors.some((e) => /overlaps/.test(e)));
 });
 
-async function annotatedBook(occurrencesPerChapter) {
+async function annotatedBook(occurrencesPerChapter, chapterText = '苹果和香蕉。') {
   const dir = await tmp();
   const file = join(dir, 'b.txt');
-  await writeFile(file, '第一章 甲\n苹果和香蕉。\n第二章 乙\n苹果和香蕉。\n');
+  await writeFile(file, `第一章 甲\n${chapterText}\n第二章 乙\n${chapterText}\n`);
   const { bookDir } = await importText(file, { id: 'b', libraryDir: join(dir, 'library') });
   await writeFile(join(bookDir, 'vocab.json'), JSON.stringify({ words: [
     { id: 'apple-n', lemma: 'apple', ipa: '/ˈæpl/', pos: 'n.', example: 'An apple a day.' },
@@ -99,16 +99,38 @@ const dense = { sentencesPerWord: { min: 0.5, max: 2 }, maxPerWord: 6 };
 test('validates an annotated book with its own density', async () => {
   const bookDir = await annotatedBook([[apple, banana], [apple, banana]]);
   assert.deepEqual(await validateBook(bookDir, { density: dense, wordlist: false }), []);
-  const tooDense = await validateBook(bookDir, { wordlist: false });
+  const sparse = { sentencesPerWord: { min: 2, max: 6 }, maxPerWord: 6, everySentence: false };
+  const tooDense = await validateBook(bookDir, { density: sparse, wordlist: false });
   assert.ok(tooDense.some((e) => /chapter "001" has 1 sentences and 2 tagged words \(one every 0\.5 sentences\); expected one every 2–6 sentences, i\.e\. 1–1 tagged words/.test(e)));
+});
+
+test('by default every sentence needs a tagged word, except very short ones', async () => {
+  const text = '苹果很甜。好。香蕉也很甜。';
+  const both = await annotatedBook([[apple, banana], [apple, banana]], text);
+  assert.deepEqual(await validateBook(both, { wordlist: false }), []);
+
+  const half = await annotatedBook([[apple], [apple, banana]], text);
+  const errors = await validateBook(half, { wordlist: false });
+  assert.ok(errors.some((e) => /chapter "001": 1 of 2 sentences have no tagged word, and every sentence needs one: paragraph 1 "香蕉也很甜。…"/.test(e)), errors.join('\n'));
+  assert.ok(!errors.some((e) => /chapter "002"/.test(e)));
+});
+
+test('a sparser --density turns off the every-sentence rule', async () => {
+  const dir = await tmp();
+  const file = join(dir, 'b.txt');
+  await writeFile(file, '第一章 甲\n一。\n');
+  const { book } = await importText(file, { id: 'sparse', libraryDir: join(dir, 'library'), density: parseDensity('2-6') });
+  assert.equal(book.density.everySentence, false);
+  const { book: dense } = await importText(file, { id: 'dense', libraryDir: join(dir, 'library'), density: parseDensity('1') });
+  assert.equal(dense.density.everySentence, true);
 });
 
 test('density scales with chapter length', () => {
   const density = { sentencesPerWord: { min: 1, max: 2 } };
   assert.deepEqual(densityRange(10, density), { min: 5, max: 10 });
   assert.deepEqual(densityRange(300, density), { min: 150, max: 300 });
-  assert.deepEqual(densityRange(300, DEFAULT_DENSITY), { min: 50, max: 150 });
-  assert.deepEqual(densityRange(1, DEFAULT_DENSITY), { min: 1, max: 1 });
+  assert.deepEqual(densityRange(300, DEFAULT_DENSITY), { min: 300, max: 600 });
+  assert.deepEqual(densityRange(1, DEFAULT_DENSITY), { min: 1, max: 2 });
 });
 
 test('counts sentences across Chinese and Western punctuation and paragraph breaks', () => {
