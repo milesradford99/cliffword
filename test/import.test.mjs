@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { cp, mkdtemp, writeFile, readFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { splitChapters, decodeText, importText, parseDensity } from '../scripts/import-text.mjs';
+import { splitChapters, decodeText, importText, parseDensity, updateLibraryIndex } from '../scripts/import-text.mjs';
 import { applyAnnotations, countSentences } from '../scripts/lib/annotate.mjs';
 import { DEFAULT_DENSITY, densityRange, loadBook, validateBook } from '../scripts/validate-content.mjs';
 
@@ -219,4 +219,12 @@ test('once a book has audio, every word, form and example needs a clip', async (
   await writeFile(join(dir, 'vocab.json'), JSON.stringify(vocab));
   const errors = await validateBook(dir, { wordlist: false });
   assert.ok(errors.some((e) => /audio is missing for 1 word\(s\) or example\(s\) \("She wrote a long letter home\."\); run npm run audio -- library\/demo/.test(e)));
+});
+
+test('reindex gives books imported before importedAt an added date', async () => {
+  const lib = await tmp();
+  await mkdir(join(lib, 'old'));
+  await writeFile(join(lib, 'old', 'book.json'), JSON.stringify({ id: 'old', title: '旧书', chapters: [{ id: '001', title: '一' }] }));
+  const [book] = await updateLibraryIndex(lib);
+  assert.ok(!Number.isNaN(Date.parse(book.addedAt)));
 });

@@ -84,3 +84,37 @@ export function lastReadLabel(at, now = Date.now()) {
   const d = new Date(at);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
+
+// Shelf state in the library URL (#/?q=…&cat=…&page=2), so Back returns to
+// the same page and a filtered view can be bookmarked. Defaults are left out.
+export const SHELF_DEFAULTS = { query: '', category: null, status: null, sort: 'recent', dir: null, page: 1, size: 24, view: 'grid' };
+const PARAMS = { query: 'q', category: 'cat', status: 'status', sort: 'sort', dir: 'dir', page: 'page', size: 'size', view: 'view' };
+const STATUS_IDS = Object.keys(STATUS_RANK);
+
+// Only the keys present and valid in the URL; the caller keeps the rest.
+export function shelfStateFromParams(params) {
+  const state = {};
+  const get = (key) => params.get(PARAMS[key]);
+  if (get('query') != null) state.query = get('query').slice(0, 100);
+  if (get('category')) state.category = get('category').slice(0, 40);
+  if (STATUS_IDS.includes(get('status'))) state.status = get('status');
+  if (SORTS.some((s) => s.id === get('sort'))) state.sort = get('sort');
+  if (['asc', 'desc'].includes(get('dir'))) state.dir = get('dir');
+  const page = Number.parseInt(get('page'), 10);
+  if (page >= 1) state.page = page;
+  const size = Number(get('size'));
+  if (PAGE_SIZES.includes(size)) state.size = size;
+  if (['grid', 'list'].includes(get('view'))) state.view = get('view');
+  return state;
+}
+
+export function shelfParams(state) {
+  const params = new URLSearchParams();
+  for (const [key, name] of Object.entries(PARAMS)) {
+    let value = state[key];
+    if (key === 'dir' && value === sortById(state.sort).dir) value = null;
+    if (value == null || value === '' || value === SHELF_DEFAULTS[key]) continue;
+    params.set(name, String(value));
+  }
+  return params;
+}

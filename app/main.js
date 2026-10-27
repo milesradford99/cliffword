@@ -2,7 +2,9 @@
 // Hash routes: #/  ·  #/saved  ·  #/read/<source>/<book>/<chapter>?mode=<mode>
 import { listBuiltIn, listLibrary, loadBook } from './data.js';
 import { createStore, STATUSES } from './store.js';
-import { filterShelf, lastReadLabel, pageList, paginate, PAGE_SIZES, SORTS, sortById, sortShelf } from './shelf.js';
+import {
+  filterShelf, lastReadLabel, pageList, paginate, PAGE_SIZES, SHELF_DEFAULTS, shelfParams, shelfStateFromParams, SORTS, sortById, sortShelf,
+} from './shelf.js';
 import { checkMeaning, checkSpelling, hintFor, transferPrompt } from './check.js';
 import { speak, stopSpeaking, ttsSupported } from './tts.js';
 
@@ -51,7 +53,7 @@ function parseRoute() {
   const parts = path.split('/').filter(Boolean).map(decodeURIComponent);
   const params = new URLSearchParams(query);
   if (parts[0] === 'read' && parts.length >= 3) {
-    return { view: 'read', source: parts[1], id: parts[2], chapter: parts[3] ?? null, mode: params.get('mode') ?? 'read' };
+    return { view: 'read', source: parts[1], id: parts[2], chapter: parts[3] ?? null, mode: params.get('mode') ?? 'read', fromStart: params.get('from') === 'start' };
   }
   if (parts[0] === 'saved') return { view: 'saved' };
   if (parts[0] === 'review') return { view: 'review' };
@@ -101,15 +103,19 @@ function shelfEntry(book) {
   return {
     book, id: book.id, title: book.title, category: shelfCategory(book), status: shelfStatus(book),
     read, chapters: book.chapters, progress: book.chapters ? read / book.chapters : 0,
-    lastReadAt: store.position(key)?.at ?? null, addedAt: book.addedAt ? Date.parse(book.addedAt) : null,
+    // Positions saved before reading times were kept count as read long ago.
+    lastReadAt: store.position(key) ? store.position(key).at ?? 0 : null,
+    addedAt: book.addedAt ? Date.parse(book.addedAt) : null,
   };
 }
 
 function bookCard(entry, onEdit) {
   const { book, status, read, progress } = entry;
   const pos = store.position(bookKey(book));
-  const href = pos?.chapter ? readHref(book.source, book.id, pos.chapter) : `#/read/${encodeURIComponent(book.source)}/${encodeURIComponent(book.id)}`;
-  const action = status === 'done' ? '已读完' : pos ? `继续阅读 · 第${pos.chapterNumber ?? '?'}章` : '开始阅读';
+  const start = `#/read/${encodeURIComponent(book.source)}/${encodeURIComponent(book.id)}`;
+  const done = status === 'done';
+  const href = done ? `${start}?from=start` : pos?.chapter ? readHref(book.source, book.id, pos.chapter) : start;
+  const action = done ? '已读完 · 从头再读' : pos ? `继续阅读 · 第${pos.chapterNumber ?? '?'}章` : '开始阅读';
   const meta = `${entry.category} · ${book.source === 'builtin' ? `${book.words} 个单词` : '本机'}`;
   const when = lastReadLabel(entry.lastReadAt);
   return h('li', { class: 'shelf-item' },
@@ -134,6 +140,18 @@ function shelfSection(books, library) {
   const results = h('div', { class: 'shelf-results' });
   const count = h('p', { class: 'shelf-count', role: 'status' });
 
+  // A library URL with a query (#/?page=2) is the whole shelf state, so Back
+  // and bookmarks restore it exactly. A bare #/ uses the remembered settings.
+  const [, urlQuery] = location.hash.split('?');
+  if (urlQuery !== undefined) {
+    const state = { ...SHELF_DEFAULTS, ...shelfStateFromParams(new URLSearchParams(urlQuery)) };
+    shelfQuery = state.query;
+    Object.entries({
+      shelfCategory: state.category, shelfStatus: state.status, shelfSort: state.sort, shelfDir: state.dir,
+      shelfPage: state.page, shelfPageSize: state.size, shelfView: state.view,
+    }).forEach(([name, value]) => store.setPref(name, value));
+  }
+
   const prefs = () => {
     const sort = sortById(store.pref('shelfSort', 'recent'));
     const dir = ['asc', 'desc'].includes(store.pref('shelfDir', null)) ? store.pref('shelfDir', null) : sort.dir;
@@ -151,30 +169,30 @@ function shelfSection(books, library) {
 
   const sortSelect = h('select', { id: 'shelf-sort', 'aria-labelledby': 'shelf-sort-label' },
     SORTS.map((s) => h('option', { value: s.id, selected: s.id === prefs().sort.id }, s.label)));
-  sortSelect.addEventListener('change', () => { store.setPref('shelfDir', null); refilter('shelfSort', sortSelect.value); draw(); });
+  sortSelect.addEventListener('change', () => { store.setPref('shelfDir', null); refilter('shelfSort', sortSelect.value); draw({ push: true }); });
 
   const dirBtn = h('button', { type: 'button', class: 'chip dir' });
-  dirBtn.addEventListener('click', () => { store.setPref('shelfDir', prefs().dir === 'asc' ? 'desc' : 'asc'); store.setPref('shelfPage', 1); draw(); });
+  dirBtn.addEventListener('click', () => { store.setPref('shelfDir', prefs().dir === 'asc' ? 'desc' : 'asc'); store.setPref('shelfPage', 1); draw({ push: true }); });
 
   const sizeSelect = h('select', { id: 'shelf-size', 'aria-labelledby': 'shelf-size-label' },
     PAGE_SIZES.map((n) => h('option', { value: String(n), selected: n === prefs().size }, `${n} 本`)));
-  sizeSelect.addEventListener('change', () => { refilter('shelfPageSize', Number(sizeSelect.value)); draw(); });
+  sizeSelect.addEventListener('change', () => { refilter('shelfPageSize', Number(sizeSelect.value)); draw({ push: true }); });
 
   const viewBtn = (view, label) => {
     const btn = h('button', { type: 'button', class: 'chip', 'data-view': view, text: label });
-    btn.addEventListener('click', () => { store.setPref('shelfView', view); draw(); });
+    btn.addEventListener('click', () => { store.setPref('shelfView', view); draw({ push: true }); });
     return btn;
   };
   const viewBtns = [viewBtn('grid', '格子'), viewBtn('list', '列表')];
 
   const chip = (filter, value, label, active) => h('button', {
     type: 'button', class: 'chip', 'data-filter': `${filter}:${value ?? ''}`, 'aria-pressed': String(active),
-    onclick: () => { refilter(filter, value); draw({ filter: `${filter}:${value ?? ''}` }); },
+    onclick: () => { refilter(filter, value); draw({ filter: `${filter}:${value ?? ''}`, push: true }); },
   }, label);
 
   function goTo(page, nav) {
     store.setPref('shelfPage', page);
-    draw({ nav });
+    draw({ nav, push: true });
     if (section.getBoundingClientRect().top < 0) section.scrollIntoView({ block: 'start' });
   }
 
@@ -232,13 +250,16 @@ function shelfSection(books, library) {
               store.setPref('shelfCategory', null);
               store.setPref('shelfStatus', null);
               store.setPref('shelfPage', 1);
-              draw();
+              draw({ push: true });
               search.focus();
             },
             text: '清除搜索和筛选',
           })),
       pager(shown),
       libraryHelp(library) ?? '');
+    // Typing replaces the history entry; other changes add one, so Back steps through them.
+    const hash = `#/?${shelfParams({ query: shelfQuery, category, status, sort: sort.id, dir, page: shown.page, size, view })}`;
+    if (hash !== location.hash) history[focus.push ? 'pushState' : 'replaceState'](null, '', hash);
     if (focus.filter) results.querySelector(`[data-filter="${CSS.escape(focus.filter)}"]`)?.focus();
     if (focus.nav) {
       const target = results.querySelector(`[data-nav="${focus.nav}"]:not([disabled])`) ?? results.querySelector('.pager [aria-current="page"]');
@@ -519,13 +540,14 @@ function renderSaved() {
 async function renderReader(route) {
   const book = await loadBook(route.source, route.id);
   const pos = store.position(bookKey(book));
-  const chapterIndex = Math.max(0, book.chapters.findIndex((c) => c.id === (route.chapter ?? pos?.chapter)));
+  // ?from=start (从头再读) opens chapter 1 whatever the saved position.
+  const chapterIndex = route.fromStart ? 0 : Math.max(0, book.chapters.findIndex((c) => c.id === (route.chapter ?? pos?.chapter)));
   const ref = book.chapters[chapterIndex];
   const chapter = await ref.load();
   const mode = MODES.some((m) => m.id === route.mode) ? route.mode : 'read';
   document.title = `${book.title} · ${ref.title}`;
 
-  const restoring = pos && pos.chapter === ref.id && pos.paragraph > 0;
+  const restoring = !route.fromStart && pos && pos.chapter === ref.id && pos.paragraph > 0;
   store.setPosition(bookKey(book), { chapter: ref.id, chapterNumber: chapterIndex + 1, paragraph: restoring ? pos.paragraph : 0 });
 
   const tabs = h('div', { class: 'modes', role: 'group', 'aria-label': '学习模式' },

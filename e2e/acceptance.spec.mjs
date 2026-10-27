@@ -227,3 +227,45 @@ test('a large shelf can be searched, sorted and paged', async ({ page }) => {
   await expect(titles.first()).toHaveText('画皮');
   await expect(shelf.getByLabel('每页', { exact: true })).toHaveValue('12');
 });
+
+test('the shelf URL keeps its state for Back and bookmarks', async ({ page }) => {
+  const books = Array.from({ length: 30 }, (_, i) => ({
+    id: `book-${String(i + 1).padStart(2, '0')}`, title: `第${String(i + 1).padStart(2, '0')}本书`, chapters: i + 1, category: '小说',
+  }));
+  await page.route('**/library/index.json', (route) => route.fulfill({ json: { books } }));
+  await page.goto('/');
+  const shelf = page.locator('.shelf');
+  const count = shelf.locator('.shelf-count');
+
+  await shelf.getByRole('button', { name: '第 2 页' }).click();
+  await expect(page).toHaveURL(/#\/\?page=2$/);
+  await shelf.getByRole('link', { name: /第25本书/ }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await page.goBack();
+  await expect(count).toHaveText('共 31 本 · 第 25–31 本 · 第 2/2 页');
+  await page.goBack();
+  await expect(count).toHaveText('共 31 本 · 第 1–24 本 · 第 1/2 页');
+
+  // A bookmarked view opens exactly as saved.
+  await page.goto('/#/?q=book-0&sort=title&dir=desc&view=list');
+  await expect(shelf.getByLabel('搜索', { exact: true })).toHaveValue('book-0');
+  await expect(shelf.locator('.books-list .book-title').first()).toHaveText('第09本书');
+  await expect(count).toHaveText('找到 9 本（共 31 本） · 第 1–9 本 · 第 1/1 页');
+});
+
+test('a finished book starts again from chapter 1, and old reading history still counts as read', async ({ page }) => {
+  // Progress saved before reading times were kept: a position with no `at`.
+  await page.addInitScript(() => {
+    if (localStorage.getItem('cliffword:v1')) return;
+    localStorage.setItem('cliffword:v1', JSON.stringify({
+      version: 1, positions: { 'builtin/huapi': { chapter: '03', chapterNumber: 3, paragraph: 2 } },
+      stats: { nextChapter: {}, completed: { 'builtin/huapi': ['01', '02', '03'] }, days: [] },
+    }));
+  });
+  await page.goto('/');
+  const card = page.locator('.shelf').getByRole('link', { name: /画皮/ });
+  await expect(card).toContainText('已读完 · 从头再读');
+  await expect(page.locator('.shelf .book-title').first()).toHaveText('画皮');
+  await card.click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('第1章 包袱');
+});

@@ -62,3 +62,24 @@ test('last-read labels are relative to the local day', () => {
   assert.equal(lastReadLabel(new Date('2026-10-20T12:00:00').getTime(), now), '7 天前');
   assert.equal(lastReadLabel(new Date('2026-08-01T12:00:00').getTime(), now), '2026-08-01');
 });
+
+test('shelf state round-trips through the URL, leaving defaults out', async () => {
+  const { shelfParams, shelfStateFromParams, SHELF_DEFAULTS } = await import('../app/shelf.js');
+  assert.equal(shelfParams(SHELF_DEFAULTS).toString(), '');
+  assert.equal(shelfParams({ ...SHELF_DEFAULTS, sort: 'title', dir: 'asc' }).toString(), 'sort=title');
+  const state = { query: '西游', category: '小说', status: 'reading', sort: 'length', dir: 'asc', page: 3, size: 48, view: 'list' };
+  const params = shelfParams(state);
+  assert.equal(params.toString(), 'q=%E8%A5%BF%E6%B8%B8&cat=%E5%B0%8F%E8%AF%B4&status=reading&sort=length&dir=asc&page=3&size=48&view=list');
+  assert.deepEqual(shelfStateFromParams(params), state);
+});
+
+test('invalid URL values are ignored', async () => {
+  const { shelfStateFromParams } = await import('../app/shelf.js');
+  assert.deepEqual(shelfStateFromParams(new URLSearchParams('status=lost&sort=x&dir=up&page=-2&size=7&view=table')), {});
+  assert.deepEqual(shelfStateFromParams(new URLSearchParams('page=2abc')), { page: 2 });
+});
+
+test('reading history without a time sorts after timed reads but before never-read books', () => {
+  const list = [{ title: '甲', lastReadAt: null }, { title: '乙', lastReadAt: 0 }, { title: '丙', lastReadAt: 500 }];
+  assert.deepEqual(titles(sortShelf(list, 'recent')), ['丙', '乙', '甲']);
+});

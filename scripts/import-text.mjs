@@ -5,7 +5,7 @@
 //        npm run import -- --reindex   (rebuild library/index.json after editing a book.json)
 //   --density: on average one tagged word every <min>-<max> sentences. The
 //   default, 0.5-1, also needs a tagged word in every sentence.
-import { readFile, writeFile, mkdir, rm, access, readdir } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rm, access, readdir, stat } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -120,12 +120,15 @@ export async function updateLibraryIndex(libraryDir = DEFAULT_LIBRARY) {
   const books = [];
   for (const entry of await readdir(libraryDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
-    const book = await readFile(join(libraryDir, entry.name, 'book.json'), 'utf8').then(JSON.parse, () => null);
+    const file = join(libraryDir, entry.name, 'book.json');
+    const book = await readFile(file, 'utf8').then(JSON.parse, () => null);
     if (book) {
+      // Books imported before importedAt was recorded: use when book.json was written.
+      const addedAt = book.importedAt ?? (await stat(file)).mtime.toISOString();
       books.push({
         id: book.id, title: book.title, chapters: book.chapters.length,
         ...(book.category ? { category: book.category } : {}),
-        ...(book.importedAt ? { addedAt: book.importedAt } : {}),
+        addedAt,
       });
     }
   }
