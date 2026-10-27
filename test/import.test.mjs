@@ -50,6 +50,7 @@ test('writes source chapters and book.json, and will not overwrite', async () =>
   assert.equal(book.chapters.length, 2);
   assert.deepEqual(book.density, DEFAULT_DENSITY);
   assert.equal(book.level, 'IELTS');
+  assert.ok(!Number.isNaN(Date.parse(book.importedAt)));
   assert.equal(await readFile(join(bookDir, 'source', '002.txt'), 'utf8'), '二。\n');
   await assert.rejects(importText(file, { id: 'my-book', libraryDir: lib }), /already exists/);
 });
@@ -182,6 +183,7 @@ test('import keeps library/index.json listing every book', async () => {
   const index = JSON.parse(await readFile(join(lib, 'index.json'), 'utf8'));
   assert.deepEqual(index.books.map((b) => b.id), ['a-one', 'b-two']);
   assert.equal(index.books[0].chapters, 1);
+  assert.ok(index.books[0].addedAt);
 });
 
 test('imported books must use IELTS words, real forms and dictionary-backed glosses', async () => {

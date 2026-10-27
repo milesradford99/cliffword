@@ -71,7 +71,7 @@ a { color: var(--accent); text-underline-offset: 0.2em; }
 
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
 
-button, input { font: inherit; color: inherit; }
+button, input, select { font: inherit; color: inherit; }
 fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 
 [lang="en"] { font-family: var(--latin); }
@@ -341,4 +341,60 @@ dialog::backdrop { background: rgb(30 20 10 / 0.45); }
 
 @media (prefers-reduced-motion: no-preference) {
   .w, .mode, .book, .chip { transition: background-color 0.15s, border-color 0.15s; }
+}
+
+/* ---------- Shelf tools, progress and paging ---------- */
+
+.shelf-tools { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem 0.75rem; margin: 0 0 0.75rem; }
+.tool { display: grid; gap: 0.15rem; font-family: var(--ui); font-size: 0.8rem; color: var(--muted); }
+.tool-search { flex: 1 1 14rem; }
+.tool input, .tool select {
+  min-height: 40px; padding: 0.3rem 0.65rem; border: 1px solid var(--rule); border-radius: 8px;
+  background: var(--card); color: var(--ink); font-family: var(--ui); font-size: 0.95rem;
+}
+.tool input { width: 100%; }
+.chip.dir { min-height: 40px; }
+
+.shelf-count { margin: 0.25rem 0 0; color: var(--muted); font-family: var(--ui); font-size: 0.85rem; }
+
+.progress { display: block; height: 4px; margin-top: 0.4rem; border-radius: 999px; background: var(--rule); overflow: hidden; }
+.progress span { display: block; height: 100%; background: var(--accent); }
+.book-when { color: var(--muted); font-family: var(--ui); font-size: 0.78rem; margin-top: 0.2rem; }
+.books-grid .book-when { display: none; }
+
+.pager { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.35rem; margin: 1.25rem 0 0.5rem; }
+.chip.page { min-width: 40px; min-height: 40px; }
+.chip.page[aria-current="page"] { background: var(--accent); border-color: var(--accent); color: var(--paper); font-weight: 600; }
+.chip.page:disabled { opacity: 0.4; cursor: default; }
+.pager .gap { color: var(--muted); padding: 0 0.2rem; }
+
+@media (max-width: 420px) {
+  .pager .chip.page[data-nav="prev"], .pager .chip.page[data-nav="next"] { padding: 0.2rem 0.6rem; }
+}
+
+/* List view: one dense row per book, like a table. */
+.books-list { gap: 0; border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; background: var(--card); }
+.books-list .shelf-item + .shelf-item { border-top: 1px solid var(--rule); }
+.books-list .book {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1.3fr) minmax(7.5rem, 1fr) minmax(6.5rem, auto);
+  align-items: center; gap: 0.1rem 1rem; padding: 0.55rem 3.25rem 0.55rem 0.9rem;
+  border: 0; border-radius: 0; box-shadow: none;
+}
+.books-list .book:hover { background: var(--accent-soft); }
+.books-list .book-title { grid-area: 1 / 1; font-size: 1.05rem; padding: 0; line-height: 1.4; }
+.books-list .book-meta { grid-area: 1 / 2; }
+.books-list .book-when { grid-area: 2 / 2; margin: 0; }
+.books-list .status { grid-area: 1 / 3; margin: 0; }
+.books-list .progress { grid-area: 2 / 3; margin: 0; }
+.books-list .book-action { grid-area: 1 / 4 / 3; margin: 0; text-align: right; }
+.books-list .book-edit { top: 50%; right: 0.4rem; transform: translateY(-50%); }
+
+@media (max-width: 600px) {
+  .books-list .book { grid-template-columns: minmax(0, 1fr) auto; }
+  .books-list .book-title { grid-area: 1 / 1; }
+  .books-list .status { grid-area: 1 / 2; justify-self: end; }
+  .books-list .book-meta { grid-area: 2 / 1; }
+  .books-list .progress { grid-area: 2 / 2; width: 5rem; }
+  .books-list .book-when { grid-area: 3 / 1; }
+  .books-list .book-action { grid-area: 3 / 2; }
 }

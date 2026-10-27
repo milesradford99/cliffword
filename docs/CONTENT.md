@@ -75,7 +75,7 @@ The validator can't check whether a gloss is *correct*, whether the story is goo
 
 ```
 library/<book-id>/
-  book.json            id, title, category (optional), level ("IELTS"), density, chapters
+  book.json            id, title, category (optional), importedAt, level ("IELTS"), density, chapters
   source/001.txt, …    the chapter text as it was, one paragraph per line
 ```
 

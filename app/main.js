@@ -2,6 +2,7 @@
 // Hash routes: #/  ·  #/saved  ·  #/read/<source>/<book>/<chapter>?mode=<mode>
 import { listBuiltIn, listLibrary, loadBook } from './data.js';
 import { createStore, STATUSES } from './store.js';
+import { filterShelf, lastReadLabel, pageList, paginate, PAGE_SIZES, SORTS, sortById, sortShelf } from './shelf.js';
 import { checkMeaning, checkSpelling, hintFor, transferPrompt } from './check.js';
 import { speak, stopSpeaking, ttsSupported } from './tts.js';
 
@@ -93,14 +94,24 @@ function coverHue(title) {
   return hue;
 }
 
-function bookCard(book, onEdit) {
+// One book as the shelf sees it (see shelf.js).
+function shelfEntry(book) {
   const key = bookKey(book);
-  const pos = store.position(key);
-  const status = shelfStatus(book);
   const read = Math.min(book.chapters, store.data.stats.completed[key]?.length ?? 0);
+  return {
+    book, id: book.id, title: book.title, category: shelfCategory(book), status: shelfStatus(book),
+    read, chapters: book.chapters, progress: book.chapters ? read / book.chapters : 0,
+    lastReadAt: store.position(key)?.at ?? null, addedAt: book.addedAt ? Date.parse(book.addedAt) : null,
+  };
+}
+
+function bookCard(entry, onEdit) {
+  const { book, status, read, progress } = entry;
+  const pos = store.position(bookKey(book));
   const href = pos?.chapter ? readHref(book.source, book.id, pos.chapter) : `#/read/${encodeURIComponent(book.source)}/${encodeURIComponent(book.id)}`;
   const action = status === 'done' ? '已读完' : pos ? `继续阅读 · 第${pos.chapterNumber ?? '?'}章` : '开始阅读';
-  const meta = `${shelfCategory(book)} · ${book.source === 'builtin' ? `${book.words} 个单词` : '本机'}`;
+  const meta = `${entry.category} · ${book.source === 'builtin' ? `${book.words} 个单词` : '本机'}`;
+  const when = lastReadLabel(entry.lastReadAt);
   return h('li', { class: 'shelf-item' },
     h('a', { class: 'book', href },
       h('span', { class: 'cover', 'aria-hidden': 'true', style: `--hue: ${coverHue(book.title)}` },
@@ -108,55 +119,143 @@ function bookCard(book, onEdit) {
       h('span', { class: 'book-title', text: book.title }),
       h('span', { class: 'book-meta', text: meta }),
       h('span', { class: `status status-${status}`, text: `${STATUS_LABEL[status]} · ${read}/${book.chapters} 章` }),
+      h('span', { class: 'progress', 'aria-hidden': 'true' }, h('span', { style: `width: ${Math.round(progress * 100)}%` })),
+      when && h('span', { class: 'book-when', text: `上次阅读：${when}` }),
       h('span', { class: 'book-action', text: action })),
     h('button', { type: 'button', class: 'icon book-edit', 'aria-label': `整理《${book.title}》`, onclick: () => onEdit(book), text: '⋯' }));
 }
 
-// Reading first, then unread, then finished; otherwise in listing order.
-const STATUS_ORDER = { reading: 0, unread: 1, done: 2 };
+// The search text lasts for this visit; view, sort, filters, page size and
+// page are remembered, so coming back from a chapter lands on the same page.
+let shelfQuery = '';
 
 function shelfSection(books, library) {
   const section = h('section', { class: 'shelf', 'aria-labelledby': 'h-shelf' });
+  const results = h('div', { class: 'shelf-results' });
+  const count = h('p', { class: 'shelf-count', role: 'status' });
+
+  const prefs = () => {
+    const sort = sortById(store.pref('shelfSort', 'recent'));
+    const dir = ['asc', 'desc'].includes(store.pref('shelfDir', null)) ? store.pref('shelfDir', null) : sort.dir;
+    const size = PAGE_SIZES.includes(store.pref('shelfPageSize', 24)) ? store.pref('shelfPageSize', 24) : 24;
+    return { sort, dir, size, view: store.pref('shelfView', 'grid') === 'list' ? 'list' : 'grid' };
+  };
+  // Anything that changes which books match starts again from page 1.
+  const refilter = (name, value) => { store.setPref(name, value); store.setPref('shelfPage', 1); };
+
+  const search = h('input', {
+    type: 'search', id: 'shelf-search', class: 'shelf-search', 'aria-labelledby': 'shelf-search-label', autocomplete: 'off', enterkeyhint: 'search',
+    placeholder: '书名、分类或 id', value: shelfQuery,
+  });
+  search.addEventListener('input', () => { shelfQuery = search.value; store.setPref('shelfPage', 1); draw(); });
+
+  const sortSelect = h('select', { id: 'shelf-sort', 'aria-labelledby': 'shelf-sort-label' },
+    SORTS.map((s) => h('option', { value: s.id, selected: s.id === prefs().sort.id }, s.label)));
+  sortSelect.addEventListener('change', () => { store.setPref('shelfDir', null); refilter('shelfSort', sortSelect.value); draw(); });
+
+  const dirBtn = h('button', { type: 'button', class: 'chip dir' });
+  dirBtn.addEventListener('click', () => { store.setPref('shelfDir', prefs().dir === 'asc' ? 'desc' : 'asc'); store.setPref('shelfPage', 1); draw(); });
+
+  const sizeSelect = h('select', { id: 'shelf-size', 'aria-labelledby': 'shelf-size-label' },
+    PAGE_SIZES.map((n) => h('option', { value: String(n), selected: n === prefs().size }, `${n} 本`)));
+  sizeSelect.addEventListener('change', () => { refilter('shelfPageSize', Number(sizeSelect.value)); draw(); });
+
+  const viewBtn = (view, label) => {
+    const btn = h('button', { type: 'button', class: 'chip', 'data-view': view, text: label });
+    btn.addEventListener('click', () => { store.setPref('shelfView', view); draw(); });
+    return btn;
+  };
+  const viewBtns = [viewBtn('grid', '格子'), viewBtn('list', '列表')];
 
   const chip = (filter, value, label, active) => h('button', {
     type: 'button', class: 'chip', 'data-filter': `${filter}:${value ?? ''}`, 'aria-pressed': String(active),
-    onclick: () => { store.setPref(filter, value); draw(`${filter}:${value ?? ''}`); },
+    onclick: () => { refilter(filter, value); draw({ filter: `${filter}:${value ?? ''}` }); },
   }, label);
 
-  function draw(focus) {
-    const view = store.pref('shelfView', 'grid') === 'list' ? 'list' : 'grid';
-    const categories = [...new Set(books.map(shelfCategory))];
+  function goTo(page, nav) {
+    store.setPref('shelfPage', page);
+    draw({ nav });
+    if (section.getBoundingClientRect().top < 0) section.scrollIntoView({ block: 'start' });
+  }
+
+  function pager({ page, pages }) {
+    if (pages < 2) return '';
+    const btn = (label, target, nav, extra = {}) => h('button', {
+      type: 'button', class: 'chip page', 'data-nav': nav, disabled: target < 1 || target > pages, onclick: () => goTo(target, nav), ...extra,
+    }, label);
+    return h('nav', { class: 'pager', 'aria-label': '书架分页' },
+      btn('‹ 上一页', page - 1, 'prev'),
+      pageList(page, pages).map((n) => (n === null
+        ? h('span', { class: 'gap', 'aria-hidden': 'true', text: '…' })
+        : btn(String(n), n, `p${n}`, { 'aria-label': `第 ${n} 页`, 'aria-current': n === page ? 'page' : null }))),
+      btn('下一页 ›', page + 1, 'next'));
+  }
+
+  function draw(focus = {}) {
+    const { sort, dir, size, view } = prefs();
+    const entries = books.map(shelfEntry);
+    const categories = [...new Set(entries.map((e) => e.category))];
     const category = categories.includes(store.pref('shelfCategory', null)) ? store.pref('shelfCategory', null) : null;
     const status = STATUSES.includes(store.pref('shelfStatus', null)) ? store.pref('shelfStatus', null) : null;
-    const inCategory = books.filter((b) => !category || shelfCategory(b) === category);
-    const shown = inCategory
-      .filter((b) => !status || shelfStatus(b) === status)
-      .map((b, i) => ({ b, i }))
-      .sort((x, y) => STATUS_ORDER[shelfStatus(x.b)] - STATUS_ORDER[shelfStatus(y.b)] || x.i - y.i)
-      .map(({ b }) => b);
-    const count = (list, test) => list.filter(test).length;
+    const searched = filterShelf(entries, { query: shelfQuery });
+    const inCategory = filterShelf(searched, { category });
+    const matched = sortShelf(filterShelf(inCategory, { status }), sort.id, dir);
+    const shown = paginate(matched, store.pref('shelfPage', 1), size);
+    const tally = (list, test) => list.filter(test).length;
 
-    section.replaceChildren(
-      h('div', { class: 'shelf-head' },
-        h('h2', { id: 'h-shelf', text: '书架' }),
-        h('div', { class: 'view-toggle', role: 'group', 'aria-label': '排列方式' },
-          chip('shelfView', 'grid', '格子', view === 'grid'),
-          chip('shelfView', 'list', '列表', view === 'list'))),
+    dirBtn.textContent = dir === 'asc' ? '↑ 升序' : '↓ 降序';
+    dirBtn.setAttribute('aria-label', `排序方向：${dir === 'asc' ? '升序' : '降序'}，点按切换`);
+    viewBtns.forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === view)));
+    count.textContent = matched.length
+      ? `${matched.length < entries.length ? `找到 ${matched.length} 本（共 ${entries.length} 本）` : `共 ${entries.length} 本`} · 第 ${shown.from}–${shown.to} 本 · 第 ${shown.page}/${shown.pages} 页`
+      : '';
+
+    results.replaceChildren(
       h('div', { class: 'filters', role: 'group', 'aria-label': '按分类筛选' },
         h('span', { class: 'filter-label', 'aria-hidden': 'true', text: '分类' }),
-        chip('shelfCategory', null, `全部 ${books.length}`, !category),
-        categories.map((c) => chip('shelfCategory', c, `${c} ${count(books, (b) => shelfCategory(b) === c)}`, category === c))),
+        chip('shelfCategory', null, `全部 ${searched.length}`, !category),
+        categories.map((c) => chip('shelfCategory', c, `${c} ${tally(searched, (e) => e.category === c)}`, category === c))),
       h('div', { class: 'filters', role: 'group', 'aria-label': '按阅读状态筛选' },
         h('span', { class: 'filter-label', 'aria-hidden': 'true', text: '状态' }),
         chip('shelfStatus', null, `全部 ${inCategory.length}`, !status),
-        STATUSES.map((st) => chip('shelfStatus', st, `${STATUS_LABEL[st]} ${count(inCategory, (b) => shelfStatus(b) === st)}`, status === st))),
-      shown.length
-        ? h('ul', { class: `books books-${view}` }, shown.map((b) => bookCard(b, (book) => openShelfEdit(book, categories, draw))))
-        : h('p', { class: 'notice', text: '没有符合条件的书。' }),
+        STATUSES.map((st) => chip('shelfStatus', st, `${STATUS_LABEL[st]} ${tally(inCategory, (e) => e.status === st)}`, status === st))),
+      count,
+      shown.items.length
+        ? h('ul', { class: `books books-${view}` }, shown.items.map((e) => bookCard(e, (book) => openShelfEdit(book, categories, draw))))
+        : h('div', { class: 'notice' },
+          h('p', { text: entries.length ? '没有符合条件的书。' : '书架上还没有书。' }),
+          entries.length && h('button', {
+            type: 'button', class: 'small',
+            onclick: () => {
+              shelfQuery = '';
+              search.value = '';
+              store.setPref('shelfCategory', null);
+              store.setPref('shelfStatus', null);
+              store.setPref('shelfPage', 1);
+              draw();
+              search.focus();
+            },
+            text: '清除搜索和筛选',
+          })),
+      pager(shown),
       libraryHelp(library) ?? '');
-    if (focus) section.querySelector(`[data-filter="${CSS.escape(focus)}"]`)?.focus();
+    if (focus.filter) results.querySelector(`[data-filter="${CSS.escape(focus.filter)}"]`)?.focus();
+    if (focus.nav) {
+      const target = results.querySelector(`[data-nav="${focus.nav}"]:not([disabled])`) ?? results.querySelector('.pager [aria-current="page"]');
+      target?.focus({ preventScroll: true });
+    }
   }
 
+  section.append(
+    h('div', { class: 'shelf-head' },
+      h('h2', { id: 'h-shelf', text: '书架' }),
+      h('div', { class: 'view-toggle', role: 'group', 'aria-label': '排列方式' }, viewBtns)),
+    h('div', { class: 'shelf-tools' },
+      h('label', { class: 'tool tool-search', for: 'shelf-search' }, h('span', { id: 'shelf-search-label', text: '搜索' }), search),
+      h('label', { class: 'tool', for: 'shelf-sort' }, h('span', { id: 'shelf-sort-label', text: '排序' }), sortSelect),
+      dirBtn,
+      h('label', { class: 'tool', for: 'shelf-size' }, h('span', { id: 'shelf-size-label', text: '每页' }), sizeSelect)),
+    results);
   draw();
   return section;
 }

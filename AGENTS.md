@@ -21,7 +21,7 @@
 - Any AI-drafted story text or gloss needs human review before merge. Say so in the PR.
 - When the user hands you a book, follow `.agents/skills/cliffword-annotate/SKILL.md` end to end, from import to validation to telling them how to read it.
 - `data/ielts.json` is generated from ECDICT (MIT). Don't edit it by hand; rebuild it with `scripts/build-wordlist.mjs`. `.claude/skills/cliffword-annotate` is a symlink to it, so edit only the `.agents` copy. Never fetch book text from the web, and never commit `library/`.
-- App code lives in `app/`: `main.js` (views and router), `data.js` (loading), `store.js` (localStorage, review schedule, export/import, stats), `check.js` (answer checking) and `tts.js`. `check.js` and `store.js` stay DOM-free so `node --test` can cover them.
+- App code lives in `app/`: `main.js` (views and router), `data.js` (loading), `store.js` (localStorage, review schedule, export/import, stats), `shelf.js` (shelf search, sorting and paging), `check.js` (answer checking) and `tts.js`. `check.js`, `store.js` and `shelf.js` stay DOM-free so `node --test` can cover them.
 - Render content with `textContent` only, never `innerHTML`: imported books are untrusted text.
 - Review entries and backups keep word-level fields only (`REVIEW_FIELDS` in `store.js`), never sentence text, so a backup can't carry an imported book. Don't add context text to them.
 - Learning state stays in the browser (localStorage), including shelf categories, read-status overrides and shelf view. Nothing is sent over the network, and fonts come from the device.

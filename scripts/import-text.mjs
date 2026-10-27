@@ -105,6 +105,7 @@ export async function importText(file, { id, title, category, density, libraryDi
     id: bookId,
     title: title ?? basename(file, extname(file)),
     ...(category ? { category } : {}),
+    importedAt: new Date().toISOString(),
     level: 'IELTS',
     density: density ? { ...DEFAULT_DENSITY, sentencesPerWord: density, everySentence: density.max <= 1 } : DEFAULT_DENSITY,
     chapters: entries,
@@ -120,7 +121,13 @@ export async function updateLibraryIndex(libraryDir = DEFAULT_LIBRARY) {
   for (const entry of await readdir(libraryDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
     const book = await readFile(join(libraryDir, entry.name, 'book.json'), 'utf8').then(JSON.parse, () => null);
-    if (book) books.push({ id: book.id, title: book.title, chapters: book.chapters.length, ...(book.category ? { category: book.category } : {}) });
+    if (book) {
+      books.push({
+        id: book.id, title: book.title, chapters: book.chapters.length,
+        ...(book.category ? { category: book.category } : {}),
+        ...(book.importedAt ? { addedAt: book.importedAt } : {}),
+      });
+    }
   }
   books.sort((a, b) => a.id.localeCompare(b.id));
   await writeFile(join(libraryDir, 'index.json'), `${JSON.stringify({ books }, null, 2)}\n`);
