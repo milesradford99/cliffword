@@ -1,7 +1,7 @@
-// cliffword reader: library, chapter reader, word card and recall modes.
+// cliffword reader: bookshelf, chapter reader, word card and recall modes.
 // Hash routes: #/  ·  #/saved  ·  #/read/<source>/<book>/<chapter>?mode=<mode>
 import { listBuiltIn, listLibrary, loadBook } from './data.js';
-import { createStore } from './store.js';
+import { createStore, STATUSES } from './store.js';
 import { checkMeaning, checkSpelling, hintFor, transferPrompt } from './check.js';
 import { speak, stopSpeaking, ttsSupported } from './tts.js';
 
@@ -12,10 +12,15 @@ const MODES = [
   { id: 'transfer', label: '迁移' },
 ];
 
+const STATUS_LABEL = { unread: '未读', reading: '在读', done: '已读' };
+// A book's category until the reader picks one: its own, else where it came from.
+const SOURCE_CATEGORY = { builtin: '内置故事', library: '我的书库' };
+
 const store = createStore();
 const app = document.getElementById('app');
 const wordDialog = document.getElementById('word-card');
 const answerDialog = document.getElementById('answer');
+const shelfDialog = document.getElementById('shelf-edit');
 
 // Answers given this session, keyed by occurrence, so quiz chips show results.
 const sessionAnswers = new Map();
@@ -78,29 +83,138 @@ async function render() {
 
 /* ---------- Library ---------- */
 
-function bookCard(book, meta) {
-  const pos = store.position(`${book.source}/${book.id}`);
-  const first = pos?.chapter;
-  return h('li', {},
-    h('a', { class: 'book', href: first ? readHref(book.source, book.id, first) : `#/read/${book.source}/${encodeURIComponent(book.id)}` },
+const shelfCategory = (book) => store.category(bookKey(book)) ?? book.category ?? SOURCE_CATEGORY[book.source];
+const shelfStatus = (book) => store.status(bookKey(book), book.chapters);
+
+// Each title gets its own cover colour, so the grid reads at a glance.
+function coverHue(title) {
+  let hue = 0;
+  for (const ch of title) hue = (hue * 31 + ch.codePointAt(0)) % 360;
+  return hue;
+}
+
+function bookCard(book, onEdit) {
+  const key = bookKey(book);
+  const pos = store.position(key);
+  const status = shelfStatus(book);
+  const read = Math.min(book.chapters, store.data.stats.completed[key]?.length ?? 0);
+  const href = pos?.chapter ? readHref(book.source, book.id, pos.chapter) : `#/read/${encodeURIComponent(book.source)}/${encodeURIComponent(book.id)}`;
+  const action = status === 'done' ? '已读完' : pos ? `继续阅读 · 第${pos.chapterNumber ?? '?'}章` : '开始阅读';
+  const meta = `${shelfCategory(book)} · ${book.source === 'builtin' ? `${book.words} 个单词` : '本机'}`;
+  return h('li', { class: 'shelf-item' },
+    h('a', { class: 'book', href },
+      h('span', { class: 'cover', 'aria-hidden': 'true', style: `--hue: ${coverHue(book.title)}` },
+        h('span', { class: 'cover-title', text: book.title })),
       h('span', { class: 'book-title', text: book.title }),
-      meta && h('span', { class: 'book-meta', text: meta }),
-      h('span', { class: 'book-action', text: pos ? `继续阅读 · 第${pos.chapterNumber ?? '?'}章` : '开始阅读' })));
+      h('span', { class: 'book-meta', text: meta }),
+      h('span', { class: `status status-${status}`, text: `${STATUS_LABEL[status]} · ${read}/${book.chapters} 章` }),
+      h('span', { class: 'book-action', text: action })),
+    h('button', { type: 'button', class: 'icon book-edit', 'aria-label': `整理《${book.title}》`, onclick: () => onEdit(book), text: '⋯' }));
+}
+
+// Reading first, then unread, then finished; otherwise in listing order.
+const STATUS_ORDER = { reading: 0, unread: 1, done: 2 };
+
+function shelfSection(books, library) {
+  const section = h('section', { class: 'shelf', 'aria-labelledby': 'h-shelf' });
+
+  const chip = (filter, value, label, active) => h('button', {
+    type: 'button', class: 'chip', 'data-filter': `${filter}:${value ?? ''}`, 'aria-pressed': String(active),
+    onclick: () => { store.setPref(filter, value); draw(`${filter}:${value ?? ''}`); },
+  }, label);
+
+  function draw(focus) {
+    const view = store.pref('shelfView', 'grid') === 'list' ? 'list' : 'grid';
+    const categories = [...new Set(books.map(shelfCategory))];
+    const category = categories.includes(store.pref('shelfCategory', null)) ? store.pref('shelfCategory', null) : null;
+    const status = STATUSES.includes(store.pref('shelfStatus', null)) ? store.pref('shelfStatus', null) : null;
+    const inCategory = books.filter((b) => !category || shelfCategory(b) === category);
+    const shown = inCategory
+      .filter((b) => !status || shelfStatus(b) === status)
+      .map((b, i) => ({ b, i }))
+      .sort((x, y) => STATUS_ORDER[shelfStatus(x.b)] - STATUS_ORDER[shelfStatus(y.b)] || x.i - y.i)
+      .map(({ b }) => b);
+    const count = (list, test) => list.filter(test).length;
+
+    section.replaceChildren(
+      h('div', { class: 'shelf-head' },
+        h('h2', { id: 'h-shelf', text: '书架' }),
+        h('div', { class: 'view-toggle', role: 'group', 'aria-label': '排列方式' },
+          chip('shelfView', 'grid', '格子', view === 'grid'),
+          chip('shelfView', 'list', '列表', view === 'list'))),
+      h('div', { class: 'filters', role: 'group', 'aria-label': '按分类筛选' },
+        h('span', { class: 'filter-label', 'aria-hidden': 'true', text: '分类' }),
+        chip('shelfCategory', null, `全部 ${books.length}`, !category),
+        categories.map((c) => chip('shelfCategory', c, `${c} ${count(books, (b) => shelfCategory(b) === c)}`, category === c))),
+      h('div', { class: 'filters', role: 'group', 'aria-label': '按阅读状态筛选' },
+        h('span', { class: 'filter-label', 'aria-hidden': 'true', text: '状态' }),
+        chip('shelfStatus', null, `全部 ${inCategory.length}`, !status),
+        STATUSES.map((st) => chip('shelfStatus', st, `${STATUS_LABEL[st]} ${count(inCategory, (b) => shelfStatus(b) === st)}`, status === st))),
+      shown.length
+        ? h('ul', { class: `books books-${view}` }, shown.map((b) => bookCard(b, (book) => openShelfEdit(book, categories, draw))))
+        : h('p', { class: 'notice', text: '没有符合条件的书。' }),
+      libraryHelp(library) ?? '');
+    if (focus) section.querySelector(`[data-filter="${CSS.escape(focus)}"]`)?.focus();
+  }
+
+  draw();
+  return section;
+}
+
+function libraryHelp(library) {
+  if (library === null) {
+    return h('div', { class: 'notice' },
+      h('p', { text: '在自己电脑上运行 cliffword 时，可以导入你自己的书。书只保存在本机，不会上传。' }),
+      h('pre', { lang: 'en' }, h('code', { text: 'npm run import -- 你的书.txt --id my-book' })),
+      h('p', { text: '然后在 Codex 或 Claude Code 里说：“用 cliffword-annotate 标注 my-book”。' }));
+  }
+  return library.length ? null : h('p', { class: 'notice', text: '还没有导入的书。运行 npm run import -- 你的书.txt 导入一本。' });
+}
+
+function openShelfEdit(book, categories, onSave) {
+  const key = bookKey(book);
+  const fallback = book.category ?? SOURCE_CATEGORY[book.source];
+  const input = h('input', {
+    id: 'shelf-category', list: 'shelf-categories', autocomplete: 'off', maxlength: '40',
+    value: store.category(key) ?? '', placeholder: fallback,
+  });
+  const chosen = store.statusOverride(key) ?? 'auto';
+  const radio = (value, label) => h('label', { class: 'radio' },
+    h('input', { type: 'radio', name: 'shelf-status', value, checked: value === chosen }), label);
+
+  const form = h('form', { class: 'sheet' },
+    h('div', { class: 'sheet-head' },
+      h('h2', { text: `整理《${book.title}》` }),
+      h('button', { type: 'button', class: 'icon close', 'aria-label': '关闭', onclick: () => shelfDialog.close(), text: '✕' })),
+    h('label', { for: 'shelf-category', text: '分类' }),
+    input,
+    h('datalist', { id: 'shelf-categories' },
+      [...new Set([...categories, ...store.categories(), ...Object.values(SOURCE_CATEGORY)])].map((c) => h('option', { value: c }))),
+    h('p', { class: 'fineprint', text: `留空就用默认分类：${fallback}` }),
+    h('fieldset', { class: 'status-choice' },
+      h('legend', { text: '阅读状态' }),
+      radio('auto', '按阅读进度自动判断'),
+      STATUSES.map((st) => radio(st, `标为${STATUS_LABEL[st]}`))),
+    h('div', { class: 'sheet-actions' }, h('button', { type: 'submit', class: 'primary', text: '保存' })));
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const status = form.elements['shelf-status'].value;
+    store.setShelf(key, { category: input.value, status: status === 'auto' ? null : status });
+    shelfDialog.close();
+    onSave();
+    document.querySelector(`.book-edit[aria-label="${CSS.escape(`整理《${book.title}》`)}"]`)?.focus();
+  });
+
+  shelfDialog.replaceChildren(form);
+  shelfDialog.showModal();
+  input.focus();
 }
 
 async function renderLibrary() {
   document.title = 'cliffword';
   const [builtIn, library] = await Promise.all([listBuiltIn(), listLibrary()]);
   const savedCount = Object.keys(store.saved()).length;
-
-  const mine = library === null
-    ? h('div', { class: 'notice' },
-      h('p', { text: '在自己电脑上运行 cliffword 时，可以导入你自己的书。书只保存在本机，不会上传。' }),
-      h('pre', { lang: 'en' }, h('code', { text: 'npm run import -- 你的书.txt --id my-book' })),
-      h('p', { text: '然后在 Codex 或 Claude Code 里说：“用 cliffword-annotate 标注 my-book”。' }))
-    : library.length
-      ? h('ul', { class: 'books' }, library.map((b) => bookCard(b, `${b.chapters} 章 · 本机`)))
-      : h('p', { class: 'notice', text: '还没有导入的书。运行 npm run import -- 你的书.txt 导入一本。' });
 
   const sum = store.summary();
   const reviewBanner = sum.due
@@ -110,18 +224,13 @@ async function renderLibrary() {
       ? h('p', { class: 'fineprint', text: `今天没有要复习的单词。还有 ${sum.upcoming} 个单词会在之后几天复习。` })
       : null;
 
-  app.replaceChildren(h('main', { class: 'page' },
+  app.replaceChildren(h('main', { class: 'page home' },
     h('header', { class: 'masthead' },
       h('h1', { text: 'cliffword' }),
       h('p', { class: 'tagline', text: '读一个停不下来的故事，顺手记住里面的英文单词。' })),
     reviewBanner,
-    h('section', { 'aria-labelledby': 'h-builtin' },
-      h('h2', { id: 'h-builtin', text: '内置故事' }),
-      h('ul', { class: 'books' }, builtIn.map((b) => bookCard(b, `${b.chapters} 章 · ${b.words} 个单词`))),
-      builtIn.map((b) => b.note && h('p', { class: 'fineprint', text: b.note }))),
-    h('section', { 'aria-labelledby': 'h-mine' },
-      h('h2', { id: 'h-mine', text: '我的书库' }),
-      mine),
+    shelfSection([...builtIn, ...(library ?? [])], library),
+    builtIn.map((b) => b.note && h('p', { class: 'fineprint', text: `《${b.title}》：${b.note}` })),
     h('section', { 'aria-labelledby': 'h-saved' },
       h('h2', { id: 'h-saved', text: '生词本' }),
       h('p', {}, h('a', { href: '#/saved', text: savedCount ? `已收藏 ${savedCount} 个单词 →` : '还没有收藏单词' }))),
@@ -192,10 +301,14 @@ function parseWordKey(key) {
   return { source: parts[0], id: parts.slice(1, -1).join('/'), w: parts.at(-1) };
 }
 
-async function reviewContext(item) {
+async function reviewBook(item) {
   const { source, id } = parseWordKey(item.key);
+  return loadBook(source, id).catch(() => null);
+}
+
+async function reviewContext(book, item) {
+  if (!book) return null;
   try {
-    const book = await loadBook(source, id);
     const ref = book.chapters.find((c) => c.id === item.chapter);
     const paragraph = ref && (await ref.load()).paragraphs[item.p];
     if (!paragraph || typeof paragraph.segments[item.i] === 'string') return null;
@@ -233,6 +346,7 @@ async function renderReview() {
     }
 
     const meaning = item.direction === 'en2zh';
+    const book = await reviewBook(item);
     const input = h('input', {
       id: 'review-input', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
       lang: meaning ? 'zh-CN' : 'en', required: true,
@@ -251,7 +365,7 @@ async function renderReview() {
       h('h1', { class: meaning ? 'lemma' : 'review-gloss', lang: meaning ? 'en' : 'zh-CN', text: meaning ? item.form : item.gloss }),
       meaning && ttsSupported && h('button', { type: 'button', class: 'icon', 'aria-label': `朗读 ${item.form}`, onclick: () => speak(item.form, { book: parseWordKey(item.key) }), text: '🔊' }),
       !meaning && h('p', { class: 'hint', lang: 'en', text: hintFor(item.form) }),
-      await reviewContext(item),
+      await reviewContext(book, item),
       h('label', { for: 'review-input', text: meaning ? '中文意思' : `英文（${item.form.length} 个字母）` }),
       input,
       feedback,

@@ -1,13 +1,16 @@
 // Word-list helpers for the cliffword-annotate skill. Output is compact
 // JSON lines so an agent can read it cheaply.
 //   npm run words -- suggest <book-id> <chapter-id> [--limit 60]
-//       IELTS words whose dictionary meanings appear in that chapter's text.
+//       First line: the chapter's sentence count and how many tagged words
+//       its density needs. Then IELTS words whose dictionary meanings
+//       appear in that chapter's text.
 //   npm run words -- lookup <word> [<word> …]
 //       Pronunciation, Chinese meanings and forms for each word.
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { loadWordlist } from './validate-content.mjs';
+import { bookDensity, densityRange, loadWordlist } from './validate-content.mjs';
+import { countSentences, splitParagraphs } from './lib/annotate.mjs';
 
 const LIBRARY = fileURLToPath(new URL('../library', import.meta.url));
 
@@ -28,6 +31,14 @@ export async function suggestFor(bookDir, chapterId, { limit = 60, list } = {}) 
   }));
 }
 
+export async function densityFor(bookDir, chapterId) {
+  const book = JSON.parse(await readFile(join(bookDir, 'book.json'), 'utf8'));
+  const text = await readFile(join(bookDir, 'source', `${chapterId}.txt`), 'utf8');
+  const { density } = bookDensity(book.density);
+  const sentences = countSentences(splitParagraphs(text));
+  return { chapter: chapterId, sentences, sentencesPerWord: density.sentencesPerWord, tagsNeeded: densityRange(sentences, density), maxPerWord: density.maxPerWord };
+}
+
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [command, ...args] = process.argv.slice(2);
   const limitAt = args.indexOf('--limit');
@@ -35,6 +46,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   try {
     if (command === 'suggest' && args.length === 2) {
       const [bookId, chapterId] = args;
+      console.log(JSON.stringify(await densityFor(join(LIBRARY, bookId), chapterId)));
       for (const row of await suggestFor(join(LIBRARY, bookId), chapterId, { limit })) console.log(JSON.stringify(row));
     } else if (command === 'lookup' && args.length) {
       const list = await loadWordlist();

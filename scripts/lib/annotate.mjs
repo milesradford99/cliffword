@@ -55,3 +55,16 @@ export function applyAnnotations(paragraphTexts, occurrences = []) {
 
   return { paragraphs, errors };
 }
+
+// Sentence ends: Chinese or Western terminal punctuation, with any closing
+// quotes or brackets after it. A paragraph break also ends a sentence.
+const SENTENCE_END = /[。！？!?…]+[”’」』）)"']*/;
+const HAS_TEXT = /[\p{L}\p{N}]/u;
+
+export function countSentences(paragraphTexts) {
+  let n = 0;
+  for (const text of paragraphTexts) {
+    for (const part of text.split(SENTENCE_END)) if (HAS_TEXT.test(part)) n += 1;
+  }
+  return n;
+}

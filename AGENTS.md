@@ -24,4 +24,5 @@
 - App code lives in `app/`: `main.js` (views and router), `data.js` (loading), `store.js` (localStorage, review schedule, export/import, stats), `check.js` (answer checking) and `tts.js`. `check.js` and `store.js` stay DOM-free so `node --test` can cover them.
 - Render content with `textContent` only, never `innerHTML`: imported books are untrusted text.
 - Review entries and backups keep word-level fields only (`REVIEW_FIELDS` in `store.js`), never sentence text, so a backup can't carry an imported book. Don't add context text to them.
-- Learning state stays in the browser (localStorage). Nothing is sent over the network, and fonts come from the device.
+- Learning state stays in the browser (localStorage), including shelf categories, read-status overrides and shelf view. Nothing is sent over the network, and fonts come from the device.
+- Imported-book density is sentences per tagged word (`density.sentencesPerWord`), not a fixed word count, so it scales with chapter length.

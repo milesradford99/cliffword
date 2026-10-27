@@ -11,9 +11,14 @@ export const INTERVALS = [1, 3, 7, 14, 30];
 // a backup can't carry an imported book's content.
 const REVIEW_FIELDS = ['lemma', 'form', 'gloss', 'accept', 'ipa', 'bookTitle', 'chapter', 'p', 'i'];
 
+// Reading status on the shelf. Without an override it follows progress.
+export const STATUSES = ['unread', 'reading', 'done'];
+
 const empty = () => ({
   version: VERSION, saved: {}, positions: {}, answers: {}, errors: {}, reviews: {},
   stats: { nextChapter: {}, completed: {}, days: [] },
+  // shelf: per book, a category and status the reader chose. prefs: shelf view and filters.
+  shelf: {}, prefs: {},
 });
 
 export function startOfDay(ms) {
@@ -136,6 +141,34 @@ export function createStore(storage = globalThis.localStorage, now = () => Date.
       save();
     },
 
+    // The reader's category for a book, or null to use the book's own.
+    category: (bookKey) => data.shelf[bookKey]?.category ?? null,
+    categories: () => [...new Set(Object.values(data.shelf).map((s) => s.category).filter(Boolean))],
+    // 'unread' | 'reading' | 'done', from an override or from progress.
+    status(bookKey, chapterCount) {
+      const chosen = data.shelf[bookKey]?.status;
+      if (STATUSES.includes(chosen)) return chosen;
+      const done = data.stats.completed[bookKey]?.length ?? 0;
+      if (chapterCount && done >= chapterCount) return 'done';
+      return done || data.positions[bookKey] ? 'reading' : 'unread';
+    },
+    statusOverride: (bookKey) => data.shelf[bookKey]?.status ?? null,
+    // category: '' or null resets to the book's own; status: null follows progress.
+    setShelf(bookKey, { category, status }) {
+      const entry = {};
+      const name = typeof category === 'string' ? category.trim().slice(0, 40) : '';
+      if (name) entry.category = name;
+      if (STATUSES.includes(status)) entry.status = status;
+      if (Object.keys(entry).length) data.shelf[bookKey] = entry;
+      else delete data.shelf[bookKey];
+      save();
+    },
+    pref: (name, fallback) => data.prefs[name] ?? fallback,
+    setPref(name, value) {
+      data.prefs[name] = value;
+      save();
+    },
+
     noteNextChapter(bookKey) {
       data.stats.nextChapter[bookKey] = (data.stats.nextChapter[bookKey] ?? 0) + 1;
       save();
@@ -170,7 +203,7 @@ export function createStore(storage = globalThis.localStorage, now = () => Date.
     },
 
     isEmpty: () => !Object.keys(data.saved).length && !Object.keys(data.answers).length
-      && !Object.keys(data.positions).length && !Object.keys(data.reviews).length,
+      && !Object.keys(data.positions).length && !Object.keys(data.reviews).length && !Object.keys(data.shelf).length,
     exportJSON() {
       return `${JSON.stringify({ app: 'cliffword', version: VERSION, exportedAt: new Date(now()).toISOString(), data }, null, 2)}\n`;
     },

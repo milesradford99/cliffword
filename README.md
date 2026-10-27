@@ -45,12 +45,15 @@ Give your own Codex or Claude Code a book you have as a local `.txt` file, and i
 
 Using the `cliffword-annotate` skill, the agent then:
 1. imports the file into `library/`;
-2. picks 8–15 IELTS words per chapter from the bundled word list;
+2. picks IELTS words from the bundled word list at a steady density: by default one tagged word every 2–6 sentences, so a long chapter gets proportionally more. Ask for another rate (“每一两句一个词”) and it imports with `--density 1-2`;
 3. writes small annotation files next to your untouched text;
 4. checks every word, form and Chinese meaning against the dictionary until the book passes;
-5. tells you to run `npm run serve` and open it under 我的书库.
+5. generates pronunciation clips for every word, form and example sentence with Kokoro on your machine (`npm run audio -- library/<id>`, see below);
+6. tells you to run `npm run serve` and open it from the 书架.
 
-Your book stays on your machine: `library/` is gitignored, and nothing is downloaded or uploaded. Only import texts you have the right to use.
+On the 书架 (bookshelf) every book has a cover in a grid, or a row in list view. Filter by category or by 未读 / 在读 / 已读; the ⋯ button on a cover sets its category or overrides its status, which otherwise follows your reading progress.
+
+Your book stays on your machine: `library/` is gitignored, and no book text is downloaded or uploaded. The only download is the Kokoro model the first time you make audio. Only import texts you have the right to use.
 
 ## English pronunciation
 
