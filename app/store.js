@@ -102,7 +102,8 @@ export function createStore(storage = globalThis.localStorage, now = () => Date.
 
     position: (bookKey) => data.positions[bookKey] ?? null,
     setPosition(bookKey, pos) {
-      data.positions[bookKey] = { ...pos };
+      // at: when this book was last read, for the shelf's 最近阅读 sort.
+      data.positions[bookKey] = { ...pos, at: now() };
       save();
     },
 

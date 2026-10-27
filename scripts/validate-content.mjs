@@ -4,7 +4,7 @@
 import { readFile, readdir } from 'node:fs/promises';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { applyAnnotations, countSentences, splitParagraphs } from './lib/annotate.mjs';
+import { applyAnnotations, splitParagraphs, splitSentences } from './lib/annotate.mjs';
 import { collectAudio } from './lib/audio.mjs';
 import { createWordlist } from './lib/wordlist.mjs';
 
@@ -22,8 +22,11 @@ const DEFAULTS = { minWords: 30, maxWords: 50, minOccurrences: 2, requireHook: t
 // Imported books: no total word range and no hook markup, but a density that
 // scales with chapter length: on average one tagged word every
 // sentencesPerWord.min–max sentences, and no word tagged more than
-// maxPerWord times in one chapter.
-export const DEFAULT_DENSITY = { sentencesPerWord: { min: 2, max: 6 }, maxPerWord: 6 };
+// maxPerWord times in one chapter. With everySentence, each sentence of at
+// least MIN_SENTENCE_CHARS letters must hold a tagged word too.
+export const DEFAULT_DENSITY = { sentencesPerWord: { min: 0.5, max: 1 }, maxPerWord: 8, everySentence: true };
+// Shorter sentences (嗯。/ 好！/ “谁？”) rarely have room for a word.
+export const MIN_SENTENCE_CHARS = 4;
 const BOOK_DEFAULTS = { minWords: 0, maxWords: Infinity, requireHook: false };
 const ENGLISH_FORM = /^[A-Za-z][A-Za-z' -]*$/;
 
@@ -87,7 +90,7 @@ export function validateStoryData({ story, vocab, chapters }, options = {}) {
         inChapter.set(seg.w, (inChapter.get(seg.w) ?? 0) + 1);
       }
     });
-    if (density && chapter.sentences) errors.push(...checkDensity(at, chapter.sentences, inChapter, density));
+    if (density && chapter.sentences?.length) errors.push(...checkDensity(at, chapter.sentences, inChapter, density));
   }
 
   for (const [id, word] of words) {
@@ -115,14 +118,29 @@ export function densityRange(sentences, { sentencesPerWord: { min, max } }) {
   return { min: low, max: Math.max(low, Math.floor(sentences / min)) };
 }
 
-function checkDensity(at, sentences, counts, density) {
+// Sentences the density counts: with everySentence, only those long enough
+// to need a word.
+export function countedSentences(sentences, density) {
+  return density.everySentence ? sentences.filter((s) => s.chars >= MIN_SENTENCE_CHARS) : sentences;
+}
+
+function checkDensity(at, all, counts, density) {
   const errors = [];
+  const counted = countedSentences(all, density);
+  const sentences = Math.max(1, counted.length);
   const tags = [...counts.values()].reduce((n, c) => n + c, 0);
   const range = densityRange(sentences, density);
   const { min, max } = density.sentencesPerWord;
   if (tags < range.min || tags > range.max) {
     const every = tags ? `one every ${(sentences / tags).toFixed(1)} sentences` : 'none';
     errors.push(`${at} has ${sentences} sentences and ${tags} tagged words (${every}); expected one every ${min}–${max} sentences, i.e. ${range.min}–${range.max} tagged words`);
+  }
+  if (density.everySentence) {
+    const bare = counted.filter((s) => !s.tagged);
+    if (bare.length) {
+      const sample = bare.slice(0, 5).map((s) => `paragraph ${s.p + 1} "${s.text.trim().slice(0, 12)}…"`).join('; ');
+      errors.push(`${at}: ${bare.length} of ${counted.length} sentences have no tagged word, and every sentence needs one: ${sample}`);
+    }
   }
   for (const [id, count] of counts) {
     if (count > density.maxPerWord) errors.push(`${at} tags "${id}" ${count} times, at most ${density.maxPerWord} per chapter: use more distinct words`);
@@ -141,6 +159,8 @@ export function bookDensity(raw) {
   }
   const density = { ...DEFAULT_DENSITY, ...raw, sentencesPerWord: { ...DEFAULT_DENSITY.sentencesPerWord, ...raw?.sentencesPerWord } };
   const { min, max } = density.sentencesPerWord;
+  // A sparser average than one per sentence can't also cover every sentence.
+  density.everySentence = raw?.everySentence ?? max <= 1;
   if (!(min > 0 && max >= min) || !(density.maxPerWord >= 1)) {
     return { density: DEFAULT_DENSITY, error: `book.json: invalid density ${JSON.stringify(raw)}: sentencesPerWord needs 0 < min ≤ max, and maxPerWord at least 1` };
   }
@@ -162,7 +182,10 @@ export async function loadBook(dir) {
     const built = applyAnnotations(texts, annotations?.occurrences ?? []);
     errors.push(...built.errors.map((e) => `chapter "${id}": ${e}`));
     // Unannotated chapters are already reported; skip their density check.
-    chapters.push({ id, title, paragraphs: built.paragraphs, sentences: annotations ? countSentences(texts) : 0 });
+    const sentences = annotations ? splitSentences(texts).map((s) => ({
+      ...s, tagged: built.spans.some((t) => t.p === s.p && t.start < s.end && t.end > s.start),
+    })) : [];
+    chapters.push({ id, title, paragraphs: built.paragraphs, sentences });
   }
   return { story: book, vocab, chapters, errors };
 }

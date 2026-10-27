@@ -180,3 +180,92 @@ test('the shelf sorts books into categories and read states, as a grid or a list
   await expect(shelf.locator('.cover').first()).toBeHidden();
   await expect(shelf.getByRole('button', { name: '在读 1' })).toHaveAttribute('aria-pressed', 'true');
 });
+
+test('a large shelf can be searched, sorted and paged', async ({ page }) => {
+  // 30 imported books, served in place of the fixture index.
+  const books = Array.from({ length: 30 }, (_, i) => ({
+    id: `book-${String(i + 1).padStart(2, '0')}`, title: `第${String(i + 1).padStart(2, '0')}本书`,
+    chapters: i + 1, category: i % 2 ? '小说' : '历史', addedAt: new Date(2026, 0, i + 1).toISOString(),
+  }));
+  await page.route('**/library/index.json', (route) => route.fulfill({ json: { books } }));
+  await page.goto('/');
+  const shelf = page.locator('.shelf');
+  const titles = shelf.locator('.book-title');
+
+  // 31 books (30 + 画皮) at 24 a page; never-read books sort by title.
+  await expect(shelf.locator('.shelf-count')).toHaveText('共 31 本 · 第 1–24 本 · 第 1/2 页');
+  await expect(titles).toHaveCount(24);
+  await shelf.getByRole('button', { name: '第 2 页' }).click();
+  await expect(titles).toHaveCount(7);
+  await expect(shelf.getByRole('button', { name: '第 2 页' })).toHaveAttribute('aria-current', 'page');
+  await expect(shelf.getByRole('button', { name: '下一页 ›' })).toBeDisabled();
+
+  // Page size, then sort by length, longest first, and flip it.
+  await shelf.getByLabel('每页', { exact: true }).selectOption('12');
+  await expect(shelf.locator('.shelf-count')).toHaveText('共 31 本 · 第 1–12 本 · 第 1/3 页');
+  await shelf.getByLabel('排序', { exact: true }).selectOption('length');
+  await expect(titles.first()).toHaveText('第30本书');
+  await shelf.getByRole('button', { name: /排序方向/ }).click();
+  await expect(titles.first()).toHaveText('第01本书');
+
+  // Search narrows and resets to page 1; filters combine with it.
+  await shelf.getByRole('button', { name: '第 3 页' }).click();
+  await shelf.getByLabel('搜索', { exact: true }).fill('book-1');
+  await expect(shelf.locator('.shelf-count')).toHaveText('找到 10 本（共 31 本） · 第 1–10 本 · 第 1/1 页');
+  await expect(shelf.locator('.pager')).toHaveCount(0);
+  await shelf.getByRole('button', { name: '小说 5' }).click();
+  await expect(titles).toHaveCount(5);
+  await shelf.getByLabel('搜索', { exact: true }).fill('没有这本书');
+  await shelf.getByRole('button', { name: '清除搜索和筛选' }).click();
+  await expect(shelf.locator('.shelf-count')).toHaveText('共 31 本 · 第 1–12 本 · 第 1/3 页');
+
+  // Reading a book puts it first under 最近阅读, and the shelf remembers its settings.
+  await shelf.getByLabel('排序', { exact: true }).selectOption('recent');
+  await page.goto('/#/read/builtin/huapi/01');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('第1章 包袱');
+  await page.goto('/');
+  await expect(titles.first()).toHaveText('画皮');
+  await expect(shelf.getByLabel('每页', { exact: true })).toHaveValue('12');
+});
+
+test('the shelf URL keeps its state for Back and bookmarks', async ({ page }) => {
+  const books = Array.from({ length: 30 }, (_, i) => ({
+    id: `book-${String(i + 1).padStart(2, '0')}`, title: `第${String(i + 1).padStart(2, '0')}本书`, chapters: i + 1, category: '小说',
+  }));
+  await page.route('**/library/index.json', (route) => route.fulfill({ json: { books } }));
+  await page.goto('/');
+  const shelf = page.locator('.shelf');
+  const count = shelf.locator('.shelf-count');
+
+  await shelf.getByRole('button', { name: '第 2 页' }).click();
+  await expect(page).toHaveURL(/#\/\?page=2$/);
+  await shelf.getByRole('link', { name: /第25本书/ }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await page.goBack();
+  await expect(count).toHaveText('共 31 本 · 第 25–31 本 · 第 2/2 页');
+  await page.goBack();
+  await expect(count).toHaveText('共 31 本 · 第 1–24 本 · 第 1/2 页');
+
+  // A bookmarked view opens exactly as saved.
+  await page.goto('/#/?q=book-0&sort=title&dir=desc&view=list');
+  await expect(shelf.getByLabel('搜索', { exact: true })).toHaveValue('book-0');
+  await expect(shelf.locator('.books-list .book-title').first()).toHaveText('第09本书');
+  await expect(count).toHaveText('找到 9 本（共 31 本） · 第 1–9 本 · 第 1/1 页');
+});
+
+test('a finished book starts again from chapter 1, and old reading history still counts as read', async ({ page }) => {
+  // Progress saved before reading times were kept: a position with no `at`.
+  await page.addInitScript(() => {
+    if (localStorage.getItem('cliffword:v1')) return;
+    localStorage.setItem('cliffword:v1', JSON.stringify({
+      version: 1, positions: { 'builtin/huapi': { chapter: '03', chapterNumber: 3, paragraph: 2 } },
+      stats: { nextChapter: {}, completed: { 'builtin/huapi': ['01', '02', '03'] }, days: [] },
+    }));
+  });
+  await page.goto('/');
+  const card = page.locator('.shelf').getByRole('link', { name: /画皮/ });
+  await expect(card).toContainText('已读完 · 从头再读');
+  await expect(page.locator('.shelf .book-title').first()).toHaveText('画皮');
+  await card.click();
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('第1章 包袱');
+});

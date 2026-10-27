@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { cp, mkdtemp, writeFile, readFile, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { splitChapters, decodeText, importText, parseDensity } from '../scripts/import-text.mjs';
+import { splitChapters, decodeText, importText, parseDensity, updateLibraryIndex } from '../scripts/import-text.mjs';
 import { applyAnnotations, countSentences } from '../scripts/lib/annotate.mjs';
 import { DEFAULT_DENSITY, densityRange, loadBook, validateBook } from '../scripts/validate-content.mjs';
 
@@ -50,6 +50,7 @@ test('writes source chapters and book.json, and will not overwrite', async () =>
   assert.equal(book.chapters.length, 2);
   assert.deepEqual(book.density, DEFAULT_DENSITY);
   assert.equal(book.level, 'IELTS');
+  assert.ok(!Number.isNaN(Date.parse(book.importedAt)));
   assert.equal(await readFile(join(bookDir, 'source', '002.txt'), 'utf8'), '二。\n');
   await assert.rejects(importText(file, { id: 'my-book', libraryDir: lib }), /already exists/);
 });
@@ -74,10 +75,10 @@ test('reports anchors that are missing or overlap', () => {
   assert.ok(errors.some((e) => /overlaps/.test(e)));
 });
 
-async function annotatedBook(occurrencesPerChapter) {
+async function annotatedBook(occurrencesPerChapter, chapterText = '苹果和香蕉。') {
   const dir = await tmp();
   const file = join(dir, 'b.txt');
-  await writeFile(file, '第一章 甲\n苹果和香蕉。\n第二章 乙\n苹果和香蕉。\n');
+  await writeFile(file, `第一章 甲\n${chapterText}\n第二章 乙\n${chapterText}\n`);
   const { bookDir } = await importText(file, { id: 'b', libraryDir: join(dir, 'library') });
   await writeFile(join(bookDir, 'vocab.json'), JSON.stringify({ words: [
     { id: 'apple-n', lemma: 'apple', ipa: '/ˈæpl/', pos: 'n.', example: 'An apple a day.' },
@@ -99,16 +100,38 @@ const dense = { sentencesPerWord: { min: 0.5, max: 2 }, maxPerWord: 6 };
 test('validates an annotated book with its own density', async () => {
   const bookDir = await annotatedBook([[apple, banana], [apple, banana]]);
   assert.deepEqual(await validateBook(bookDir, { density: dense, wordlist: false }), []);
-  const tooDense = await validateBook(bookDir, { wordlist: false });
+  const sparse = { sentencesPerWord: { min: 2, max: 6 }, maxPerWord: 6, everySentence: false };
+  const tooDense = await validateBook(bookDir, { density: sparse, wordlist: false });
   assert.ok(tooDense.some((e) => /chapter "001" has 1 sentences and 2 tagged words \(one every 0\.5 sentences\); expected one every 2–6 sentences, i\.e\. 1–1 tagged words/.test(e)));
+});
+
+test('by default every sentence needs a tagged word, except very short ones', async () => {
+  const text = '苹果很甜。好。香蕉也很甜。';
+  const both = await annotatedBook([[apple, banana], [apple, banana]], text);
+  assert.deepEqual(await validateBook(both, { wordlist: false }), []);
+
+  const half = await annotatedBook([[apple], [apple, banana]], text);
+  const errors = await validateBook(half, { wordlist: false });
+  assert.ok(errors.some((e) => /chapter "001": 1 of 2 sentences have no tagged word, and every sentence needs one: paragraph 1 "香蕉也很甜。…"/.test(e)), errors.join('\n'));
+  assert.ok(!errors.some((e) => /chapter "002"/.test(e)));
+});
+
+test('a sparser --density turns off the every-sentence rule', async () => {
+  const dir = await tmp();
+  const file = join(dir, 'b.txt');
+  await writeFile(file, '第一章 甲\n一。\n');
+  const { book } = await importText(file, { id: 'sparse', libraryDir: join(dir, 'library'), density: parseDensity('2-6') });
+  assert.equal(book.density.everySentence, false);
+  const { book: dense } = await importText(file, { id: 'dense', libraryDir: join(dir, 'library'), density: parseDensity('1') });
+  assert.equal(dense.density.everySentence, true);
 });
 
 test('density scales with chapter length', () => {
   const density = { sentencesPerWord: { min: 1, max: 2 } };
   assert.deepEqual(densityRange(10, density), { min: 5, max: 10 });
   assert.deepEqual(densityRange(300, density), { min: 150, max: 300 });
-  assert.deepEqual(densityRange(300, DEFAULT_DENSITY), { min: 50, max: 150 });
-  assert.deepEqual(densityRange(1, DEFAULT_DENSITY), { min: 1, max: 1 });
+  assert.deepEqual(densityRange(300, DEFAULT_DENSITY), { min: 300, max: 600 });
+  assert.deepEqual(densityRange(1, DEFAULT_DENSITY), { min: 1, max: 2 });
 });
 
 test('counts sentences across Chinese and Western punctuation and paragraph breaks', () => {
@@ -160,6 +183,7 @@ test('import keeps library/index.json listing every book', async () => {
   const index = JSON.parse(await readFile(join(lib, 'index.json'), 'utf8'));
   assert.deepEqual(index.books.map((b) => b.id), ['a-one', 'b-two']);
   assert.equal(index.books[0].chapters, 1);
+  assert.ok(index.books[0].addedAt);
 });
 
 test('imported books must use IELTS words, real forms and dictionary-backed glosses', async () => {
@@ -195,4 +219,12 @@ test('once a book has audio, every word, form and example needs a clip', async (
   await writeFile(join(dir, 'vocab.json'), JSON.stringify(vocab));
   const errors = await validateBook(dir, { wordlist: false });
   assert.ok(errors.some((e) => /audio is missing for 1 word\(s\) or example\(s\) \("She wrote a long letter home\."\); run npm run audio -- library\/demo/.test(e)));
+});
+
+test('reindex gives books imported before importedAt an added date', async () => {
+  const lib = await tmp();
+  await mkdir(join(lib, 'old'));
+  await writeFile(join(lib, 'old', 'book.json'), JSON.stringify({ id: 'old', title: '旧书', chapters: [{ id: '001', title: '一' }] }));
+  const [book] = await updateLibraryIndex(lib);
+  assert.ok(!Number.isNaN(Date.parse(book.addedAt)));
 });

@@ -1,6 +1,6 @@
 ---
 name: cliffword-annotate
-description: Turn a book the user gives you (a local .txt file) into a cliffword book end to end. Import it into library/, pick IELTS words from the bundled word list at the book's word density (by default one tagged word every 2–6 sentences, so long chapters get proportionally more), write annotation files, validate words and glosses against the dictionary, generate pronunciation audio locally with Kokoro, and tell the user how to read it. Use when the user hands over a book file, asks to add, import, annotate or prepare a book for cliffword, or names a book under library/.
+description: Turn a book the user gives you (a local .txt file) into a cliffword book end to end. Import it into library/, pick IELTS words from the bundled word list at the book's word density (by default at least one tagged word in every sentence), write annotation files, validate words and glosses against the dictionary, generate pronunciation audio locally with Kokoro, and tell the user how to read it. Use when the user hands over a book file, asks to add, import, annotate or prepare a book for cliffword, or names a book under library/.
 ---
 
 # cliffword-annotate
@@ -22,11 +22,11 @@ npm run import -- "<path-to-file.txt>" --id <short-ascii-id> --title "<书名>" 
 
 - **id:** lowercase letters, digits and `-`, ideally pinyin or English for the title (`hong-lou-meng`, `my-novel`). If it already exists, ask before passing `--force`, or pick another id.
 - **title:** the book's own title if you can tell it from the file name or first line, otherwise the file name.
-- **density:** how often a tagged word appears, as sentences per tagged word. The default is `2-6`: on average one English word every 2 to 6 sentences. If the user asks for a density, translate it: “每一两句一个词” → `--density 1-2`; “每句都要有” → `--density 1-1`; “少一点” → `--density 4-10`. Because it counts sentences, a long chapter needs proportionally more words, not the same fixed number.
+- **density:** how often a tagged word appears, as sentences per tagged word. The default is `0.5-1`: **every sentence holds at least one English word**, and on average no more than two. Only very short sentences (fewer than 4 letters, like 嗯。 or “谁？”) are exempt. Only pass `--density` if the user asks for fewer: “每一两句一个词” → `--density 1-2`; “少一点” → `--density 2-6`. Any range sparser than one per sentence drops the every-sentence rule. Because it counts sentences, a long chapter needs proportionally more words, not a fixed number.
 - **category:** only if the user names one (小说, 志怪, 历史…). It shows on the 书架, where the reader can also change it.
 - **What it does:** UTF-8 and GBK are detected automatically, and chapters are split on headings such as 第一章 or 第12回. With no headings, the text is cut into parts of about 3,000 characters.
 
-Then read `library/<id>/book.json`, which lists the chapters, `level` and `density`: `{ "sentencesPerWord": { "min": 2, "max": 6 }, "maxPerWord": 6 }`. If an older book still has `{ "min": 8, "max": 15 }` (a fixed word count), replace it with that default, or with the range the user asked for.
+Then read `library/<id>/book.json`, which lists the chapters, `level` and `density`: `{ "sentencesPerWord": { "min": 0.5, "max": 1 }, "maxPerWord": 8, "everySentence": true }`. If an older book has `{ "min": 8, "max": 15 }` (a fixed word count) or a sparser `sentencesPerWord` the user didn't ask for, replace it with that default.
 
 **One size check:** if the book has more than 100 chapters, annotate the first 20, report, and ask whether to continue. Otherwise do every chapter without stopping.
 
@@ -34,16 +34,16 @@ Then read `library/<id>/book.json`, which lists the chapters, `level` and `densi
 
 For chapter `<ch>`:
 
-1. **Get candidates:** `npm run words -- suggest <id> <ch>`. The first JSON line is the chapter's budget: `sentences`, and `tagsNeeded` (`min`–`max` tagged occurrences this chapter needs at the book's density) and `maxPerWord`. For a dense book or a long chapter, add `--limit 200` to see more candidates. Each following JSON line is an IELTS word whose dictionary meaning appears in this chapter: `lemma`, `ipa`, `zh` (its meanings), `anchor` (the Chinese phrase found), `count`, and `inBook` (true if the word is already in `vocab.json`).
+1. **Get candidates:** `npm run words -- suggest <id> <ch>`. The first JSON line is the chapter's budget: `sentences` (those that need a word), `everySentence`, `tagsNeeded` (`min`–`max` tagged occurrences this chapter needs) and `maxPerWord`. At one word per sentence you need many candidates: add `--limit 300`. Each following JSON line is an IELTS word whose dictionary meaning appears in this chapter: `lemma`, `ipa`, `zh` (its meanings), `anchor` (the Chinese phrase found), `count`, and `inBook` (true if the word is already in `vocab.json`).
 2. **Read the chapter:** `library/<id>/source/<ch>.txt`, to judge each candidate in context. Read only this chapter.
 
    Suggestions are a starting point, not a limit. They miss phrases the book words differently from the dictionary (恶鬼 rather than 怪物), and they can include poor matches where a rare English word's main meaning is an everyday Chinese word (*nought* for 没有). You can also choose a word you know fits: confirm it with `npm run words -- lookup <word>` (it must not print `"onList":false`), and check that the gloss you'll use matches one of its `zh` meanings.
 3. **Choose words until the chapter has `tagsNeeded.min`–`tagsNeeded.max` tagged occurrences** (aim for the middle):
    - **Count occurrences, not distinct words.** Each tag is one occurrence. A word may be tagged several times in a chapter, but at most `maxPerWord` times, so you need at least `tagsNeeded.min / maxPerWord` distinct words. Repeating a word two or three times in a chapter is good for learning.
-   - **Keep the rhythm even.** The density is an average over the chapter: place roughly one tag every `sentencesPerWord` sentences rather than bunching them in one scene and leaving long stretches bare.
+   - **Cover every sentence.** Work through the chapter sentence by sentence and tag one word in each (two in a long sentence is fine). The validator lists sentences left without a word, by paragraph. When a sentence seems to have nothing, look for a verb, adjective or abstract noun with an IELTS equivalent (走进 → *enter*, 安静 → *quiet*, 害怕 → *afraid*) before giving up on it.
    - **Prefer `inBook: true` words.** Every word must occur at least twice in the book, and reuse across chapters helps learners most.
    - **Pick only where the English fits that sentence:** the meaning is right, and the sentence still reads naturally with the English word in place. Skip names, 成语 and set phrases, and anchors inside a longer word with a different meaning (e.g. `信` inside `相信`).
-   - **Avoid very basic words** (good, go, big) even if the list has them. The target is band 5.5–7.5.
+   - **Avoid very basic words** (good, go, big) even if the list has them. The target is band 5.5–7.5, but to cover every sentence, common IELTS words that a learner still benefits from (*quiet*, *enter*, *notice*) are fine.
 4. **Add new words to `vocab.json`.** Get `ipa` from `npm run words -- lookup <lemma>` and copy it:
 
    ```json
@@ -68,7 +68,7 @@ For chapter `<ch>`:
    - `form` is the English as it should read there, possibly inflected (`fled`). It must be a real form of the lemma.
    - `gloss` is the Chinese meaning **in this sentence**, usually the anchor itself.
    - If that meaning isn't one of the dictionary's (`zh`), first try a gloss that is. If the context really needs a different meaning, add `"glossNote": "<short reason>"`.
-6. **Validate the book:** `npm run validate:library -- library/<id>`. Fix every error in this chapter (at most 3 rounds). A density error says how many tagged words the chapter has and how many it needs; add or remove tags to land inside the range. While later chapters are pending, two messages are expected and can be ignored for now: `chapter "…" is not annotated yet`, and `occurs 1 time(s)` for a word that later chapters can reuse.
+6. **Validate the book:** `npm run validate:library -- library/<id>`. Fix every error in this chapter (at most 3 rounds). A density error says how many tagged words the chapter has and how many it needs; a coverage error lists sentences with no tagged word. Fix both. While later chapters are pending, two messages are expected and can be ignored for now: `chapter "…" is not annotated yet`, and `occurs 1 time(s)` for a word that later chapters can reuse.
 
 ## Step 3: validate the whole book
 
@@ -95,7 +95,7 @@ Then run `npm run validate:library -- library/<id>` once more; it must be clean.
 
 1. Report briefly:
    - the book id and title;
-   - chapters annotated, the total number of distinct words, total tagged occurrences, and the density you hit (sentences per tagged word, lowest to highest chapter);
+   - chapters annotated, the total number of distinct words, total tagged occurrences, and tags per sentence (lowest to highest chapter);
    - how many glosses needed a `glossNote`;
    - the audio: number of clips and the voice, or why it was skipped;
    - anything skipped and why.
@@ -113,6 +113,7 @@ The validator checks that:
 - every gloss matches the dictionary or carries a note;
 - anchors exist and don't overlap;
 - each chapter's tagged occurrences match its density (sentences per tagged word), and no word is tagged more than `maxPerWord` times in one chapter;
+- with `everySentence` (the default), every sentence of 4 or more letters holds a tagged word;
 - every word occurs at least twice;
 - once a book has audio, every word, form and example has a clip.
 

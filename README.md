@@ -45,13 +45,13 @@ Give your own Codex or Claude Code a book you have as a local `.txt` file, and i
 
 Using the `cliffword-annotate` skill, the agent then:
 1. imports the file into `library/`;
-2. picks IELTS words from the bundled word list at a steady density: by default one tagged word every 2–6 sentences, so a long chapter gets proportionally more. Ask for another rate (“每一两句一个词”) and it imports with `--density 1-2`;
+2. tags IELTS words from the bundled word list in every sentence: by default each sentence holds at least one English word (only very short ones like 嗯。 are exempt), so a long chapter gets proportionally more. Ask for fewer (“每一两句一个词”) and it imports with `--density 1-2`;
 3. writes small annotation files next to your untouched text;
 4. checks every word, form and Chinese meaning against the dictionary until the book passes;
 5. generates pronunciation clips for every word, form and example sentence with Kokoro on your machine (`npm run audio -- library/<id>`, see below);
 6. tells you to run `npm run serve` and open it from the 书架.
 
-On the 书架 (bookshelf) every book has a cover in a grid, or a row in list view. Filter by category or by 未读 / 在读 / 已读; the ⋯ button on a cover sets its category or overrides its status, which otherwise follows your reading progress.
+On the 书架 (bookshelf) every book has a cover in a grid, or a dense row in list view, with a progress bar and when you last read it. Search by title, category or id; filter by category and by 未读 / 在读 / 已读; sort by 最近阅读, 书名 (pinyin), 加入时间, 阅读进度, 篇幅 or 阅读状态, in either direction; and page through 12, 24, 48 or 96 books at a time. The shelf remembers its view, sort, filters and page, and keeps them in the address (`#/?q=…&page=2`), so Back returns to the same page and a filtered view can be bookmarked. A finished book offers 从头再读. The ⋯ button on a cover sets its category or overrides its status, which otherwise follows your reading progress.
 
 Your book stays on your machine: `library/` is gitignored, and no book text is downloaded or uploaded. The only download is the Kokoro model the first time you make audio. Only import texts you have the right to use.
 

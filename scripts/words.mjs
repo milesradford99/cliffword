@@ -9,8 +9,8 @@
 import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { bookDensity, densityRange, loadWordlist } from './validate-content.mjs';
-import { countSentences, splitParagraphs } from './lib/annotate.mjs';
+import { bookDensity, countedSentences, densityRange, loadWordlist } from './validate-content.mjs';
+import { splitParagraphs, splitSentences } from './lib/annotate.mjs';
 
 const LIBRARY = fileURLToPath(new URL('../library', import.meta.url));
 
@@ -35,8 +35,11 @@ export async function densityFor(bookDir, chapterId) {
   const book = JSON.parse(await readFile(join(bookDir, 'book.json'), 'utf8'));
   const text = await readFile(join(bookDir, 'source', `${chapterId}.txt`), 'utf8');
   const { density } = bookDensity(book.density);
-  const sentences = countSentences(splitParagraphs(text));
-  return { chapter: chapterId, sentences, sentencesPerWord: density.sentencesPerWord, tagsNeeded: densityRange(sentences, density), maxPerWord: density.maxPerWord };
+  const sentences = Math.max(1, countedSentences(splitSentences(splitParagraphs(text)), density).length);
+  return {
+    chapter: chapterId, sentences, everySentence: density.everySentence,
+    sentencesPerWord: density.sentencesPerWord, tagsNeeded: densityRange(sentences, density), maxPerWord: density.maxPerWord,
+  };
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

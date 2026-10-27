@@ -54,7 +54,7 @@ test('store saves words, answers, errors and position, and survives a reload', (
 
   const b = createStore(storage, () => 2000);
   assert.equal(b.isSaved('builtin/huapi/scholar-n'), true);
-  assert.deepEqual(b.position('builtin/huapi'), { chapter: '02', paragraph: 3 });
+  assert.deepEqual(b.position('builtin/huapi'), { chapter: '02', paragraph: 3, at: 1000 });
   assert.equal(b.errors()['builtin/huapi/scholar-n'].count, 1);
   assert.equal(b.answers('builtin/huapi/scholar-n').length, 2);
   assert.equal(b.data.stats.nextChapter['builtin/huapi'], 1);
@@ -101,4 +101,14 @@ test('shelf categories are trimmed, listed once, reset when blank, and survive a
   restored.importJSON(store.exportJSON());
   assert.equal(restored.category('library/a'), '志怪');
   assert.equal(restored.status('library/a', 3), 'done');
+});
+
+test('reading position records when the book was last read', () => {
+  let t = 1000;
+  const store = createStore(memoryStorage(), () => t);
+  store.setPosition('library/demo', { chapter: '001', chapterNumber: 1, paragraph: 0 });
+  assert.equal(store.position('library/demo').at, 1000);
+  t = 5000;
+  store.setPosition('library/demo', { chapter: '002', chapterNumber: 2, paragraph: 3 });
+  assert.equal(store.position('library/demo').at, 5000);
 });

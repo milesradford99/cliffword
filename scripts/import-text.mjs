@@ -1,10 +1,11 @@
 // Splits a local text file you already have into chapters under library/<id>/.
 // The text is copied as-is; nothing is fetched, and library/ is gitignored.
 // Usage: npm run import -- <file.txt> [--id my-book] [--title 书名] [--category 分类]
-//                          [--density 2-6] [--force]
+//                          [--density 0.5-1] [--force]
 //        npm run import -- --reindex   (rebuild library/index.json after editing a book.json)
-//   --density: on average one tagged word every <min>-<max> sentences.
-import { readFile, writeFile, mkdir, rm, access, readdir } from 'node:fs/promises';
+//   --density: on average one tagged word every <min>-<max> sentences. The
+//   default, 0.5-1, also needs a tagged word in every sentence.
+import { readFile, writeFile, mkdir, rm, access, readdir, stat } from 'node:fs/promises';
 import { basename, extname, join, resolve } from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -104,8 +105,9 @@ export async function importText(file, { id, title, category, density, libraryDi
     id: bookId,
     title: title ?? basename(file, extname(file)),
     ...(category ? { category } : {}),
+    importedAt: new Date().toISOString(),
     level: 'IELTS',
-    density: { ...DEFAULT_DENSITY, sentencesPerWord: density ?? DEFAULT_DENSITY.sentencesPerWord },
+    density: density ? { ...DEFAULT_DENSITY, sentencesPerWord: density, everySentence: density.max <= 1 } : DEFAULT_DENSITY,
     chapters: entries,
   };
   await writeFile(join(bookDir, 'book.json'), `${JSON.stringify(book, null, 2)}\n`);
@@ -118,8 +120,17 @@ export async function updateLibraryIndex(libraryDir = DEFAULT_LIBRARY) {
   const books = [];
   for (const entry of await readdir(libraryDir, { withFileTypes: true })) {
     if (!entry.isDirectory()) continue;
-    const book = await readFile(join(libraryDir, entry.name, 'book.json'), 'utf8').then(JSON.parse, () => null);
-    if (book) books.push({ id: book.id, title: book.title, chapters: book.chapters.length, ...(book.category ? { category: book.category } : {}) });
+    const file = join(libraryDir, entry.name, 'book.json');
+    const book = await readFile(file, 'utf8').then(JSON.parse, () => null);
+    if (book) {
+      // Books imported before importedAt was recorded: use when book.json was written.
+      const addedAt = book.importedAt ?? (await stat(file)).mtime.toISOString();
+      books.push({
+        id: book.id, title: book.title, chapters: book.chapters.length,
+        ...(book.category ? { category: book.category } : {}),
+        addedAt,
+      });
+    }
   }
   books.sort((a, b) => a.id.localeCompare(b.id));
   await writeFile(join(libraryDir, 'index.json'), `${JSON.stringify({ books }, null, 2)}\n`);
@@ -144,7 +155,7 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     process.exit(0);
   }
   if (!file) {
-    console.error('Usage: npm run import -- <file.txt> [--id my-book] [--title 书名] [--category 分类] [--density 2-6] [--force]');
+    console.error('Usage: npm run import -- <file.txt> [--id my-book] [--title 书名] [--category 分类] [--density 0.5-1] [--force]');
     process.exit(1);
   }
   try {
