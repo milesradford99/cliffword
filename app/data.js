@@ -2,6 +2,7 @@
 // Imported chapters are assembled from untouched source text plus the
 // agent's annotations, exactly as the validator does.
 import { applyAnnotations, splitParagraphs } from '../scripts/lib/annotate.mjs';
+import { createWordlist } from '../scripts/lib/wordlist.mjs';
 
 async function get(url, as = 'json') {
   const res = await fetch(url);
@@ -25,6 +26,25 @@ export async function listLibrary() {
   } catch {
     return null;
   }
+}
+
+let dictionary = null;
+
+// The IELTS dictionary is large, so it loads on first use and only then.
+function loadDictionary() {
+  dictionary ??= get('data/ielts.json').then(createWordlist).catch(() => {
+    dictionary = null;
+    return null;
+  });
+  return dictionary;
+}
+
+// Every dictionary meaning of a word: its own `meanings` if the vocab entry
+// has them, else the word list's. Empty when neither is available.
+export async function meaningsOf(word) {
+  if (word?.meanings?.length) return word.meanings;
+  const list = await loadDictionary();
+  return list?.entry(word?.lemma ?? '')?.zh ?? [];
 }
 
 const cache = new Map();

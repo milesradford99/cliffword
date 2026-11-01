@@ -64,6 +64,9 @@ export function validateStoryData({ story, vocab, chapters }, options = {}) {
     for (const field of ['lemma', 'ipa', 'pos', 'example']) {
       if (!word[field]) errors.push(`${at}: missing ${field}`);
     }
+    if (word.meanings !== undefined && (!Array.isArray(word.meanings) || !word.meanings.length || !word.meanings.every((m) => typeof m === 'string' && m.trim()))) {
+      errors.push(`${at}: meanings must be a non-empty list of strings`);
+    }
   }
 
   const occurrences = new Map();

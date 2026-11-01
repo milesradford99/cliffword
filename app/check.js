@@ -1,5 +1,7 @@
 // Answer checking for the recall modes. Pure functions, no DOM.
 
+import { meaningTerms } from '../scripts/lib/wordlist.mjs';
+
 const ZH_NOISE = /[\s\p{P}\p{S}]/gu;
 
 export function normalizeZh(text) {
@@ -11,6 +13,21 @@ export function checkMeaning(answer, seg) {
   const given = normalizeZh(answer);
   if (!given) return false;
   return (seg.accept ?? [seg.gloss]).some((a) => normalizeZh(a) === given);
+}
+
+// EN→ZH with the word's dictionary lines: any real meaning is correct.
+// other: right, but not the meaning in this sentence, so feedback can say so.
+export function gradeMeaning(answer, seg, lines = []) {
+  if (checkMeaning(answer, seg)) return { correct: true, other: false };
+  const given = normalizeZh(answer);
+  const other = Boolean(given) && meaningTerms(lines).includes(given);
+  return { correct: other, other };
+}
+
+// Which dictionary line holds this sentence's gloss, to mark it in the list.
+export function lineHasGloss(line, gloss) {
+  const g = normalizeZh(gloss);
+  return Boolean(g) && meaningTerms([line]).some((t) => t === g || (t.length >= 2 && g.includes(t)) || (g.length >= 2 && t.includes(g)));
 }
 
 // ZH→EN: the form as it appears in the sentence, ignoring case.

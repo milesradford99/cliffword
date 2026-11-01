@@ -89,3 +89,15 @@ test('content/index.json lists exactly the story folders', async () => {
   const index = JSON.parse(await readFile(`${contentDir}/index.json`, 'utf8'));
   assert.deepEqual([...index.stories].sort(), dirs);
 });
+
+test('every built-in word has definitions, in the word list or its own meanings', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { loadWordlist } = await import('../scripts/validate-content.mjs');
+  const list = await loadWordlist();
+  const { stories } = JSON.parse(await readFile(new URL('../content/index.json', import.meta.url), 'utf8'));
+  for (const id of stories) {
+    const { words } = JSON.parse(await readFile(new URL(`../content/${id}/vocab.json`, import.meta.url), 'utf8'));
+    const bare = words.filter((w) => !w.meanings?.length && !list.has(w.lemma)).map((w) => w.lemma);
+    assert.deepEqual(bare, [], `${id} has words with no definitions`);
+  }
+});

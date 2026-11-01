@@ -1,11 +1,12 @@
 // cliffword reader: bookshelf, chapter reader, word card and recall modes.
-// Hash routes: #/  ·  #/saved  ·  #/read/<source>/<book>/<chapter>?mode=<mode>
-import { listBuiltIn, listLibrary, loadBook } from './data.js';
+// Hash routes: #/  ·  #/saved  ·  #/toc/<source>/<book>  ·  #/read/<source>/<book>/<chapter>?mode=<mode>
+import { listBuiltIn, listLibrary, loadBook, meaningsOf } from './data.js';
 import { createStore, STATUSES } from './store.js';
 import {
   filterShelf, lastReadLabel, pageList, paginate, PAGE_SIZES, SHELF_DEFAULTS, shelfParams, shelfStateFromParams, SORTS, sortById, sortShelf,
 } from './shelf.js';
-import { checkMeaning, checkSpelling, hintFor, transferPrompt } from './check.js';
+import { checkSpelling, gradeMeaning, hintFor, lineHasGloss, transferPrompt } from './check.js';
+import { bookProgress, chapterByNumber, filterToc, groupToc, nextUnread, TOC_FILTERS, tocEntries } from './toc.js';
 import { speak, stopSpeaking, ttsSupported } from './tts.js';
 
 const MODES = [
@@ -28,6 +29,7 @@ const shelfDialog = document.getElementById('shelf-edit');
 // Answers given this session, keyed by occurrence, so quiz chips show results.
 const sessionAnswers = new Map();
 let scrollHandler = null;
+let readerKeys = null;
 
 function h(tag, props = {}, ...children) {
   const el = document.createElement(tag);
@@ -55,6 +57,7 @@ function parseRoute() {
   if (parts[0] === 'read' && parts.length >= 3) {
     return { view: 'read', source: parts[1], id: parts[2], chapter: parts[3] ?? null, mode: params.get('mode') ?? 'read', fromStart: params.get('from') === 'start' };
   }
+  if (parts[0] === 'toc' && parts.length >= 3) return { view: 'toc', source: parts[1], id: parts[2], filter: params.get('filter') };
   if (parts[0] === 'saved') return { view: 'saved' };
   if (parts[0] === 'review') return { view: 'review' };
   return { view: 'library' };
@@ -65,15 +68,21 @@ function readHref(source, id, chapter, mode = 'read') {
   return mode === 'read' ? base : `${base}?mode=${mode}`;
 }
 
+const tocHref = (source, id) => `#/toc/${encodeURIComponent(source)}/${encodeURIComponent(id)}`;
+
 async function render() {
   stopSpeaking();
   if (wordDialog.open) wordDialog.close();
   if (answerDialog.open) answerDialog.close();
+  if (shelfDialog.open) shelfDialog.close();
   if (scrollHandler) removeEventListener('scroll', scrollHandler);
+  if (readerKeys) removeEventListener('keydown', readerKeys);
   scrollHandler = null;
+  readerKeys = null;
   const route = parseRoute();
   try {
     if (route.view === 'read') await renderReader(route);
+    else if (route.view === 'toc') await renderToc(route);
     else if (route.view === 'saved') renderSaved();
     else if (route.view === 'review') await renderReview();
     else await renderLibrary();
@@ -306,6 +315,7 @@ function openShelfEdit(book, categories, onSave) {
     h('div', { class: 'sheet-head' },
       h('h2', { text: `整理《${book.title}》` }),
       h('button', { type: 'button', class: 'icon close', 'aria-label': '关闭', onclick: () => shelfDialog.close(), text: '✕' })),
+    h('p', {}, h('a', { href: tocHref(book.source, book.id), text: '查看目录和章节进度 →' })),
     h('label', { for: 'shelf-category', text: '分类' }),
     input,
     h('datalist', { id: 'shelf-categories' },
@@ -414,11 +424,39 @@ function backupSection() {
     status);
 }
 
+/* ---------- Definitions ---------- */
+
+// All of a word's dictionary meanings, one line per part of speech. The line
+// holding this sentence's gloss is marked.
+function definitionList(lines, gloss) {
+  return h('ul', { class: 'defs' }, lines.map((line) => {
+    const [, pos, rest] = /^([a-z]+\.)\s*(.*)$/i.exec(line) ?? [null, null, line];
+    const here = gloss && lineHasGloss(line, gloss);
+    return h('li', { class: here ? 'here' : null },
+      pos && h('span', { class: 'pos', lang: 'en', text: pos }), rest,
+      here && h('span', { class: 'def-tag', text: '本句' }));
+  }));
+}
+
+// A block that fills in once the dictionary has loaded, so nothing waits for it.
+function definitionsBlock(word, gloss) {
+  const block = h('div', { class: 'defs-block' });
+  meaningsOf(word).then((lines) => {
+    if (lines.length) block.replaceChildren(h('h3', { text: '全部释义' }), definitionList(lines, gloss));
+  });
+  return block;
+}
+
 /* ---------- Review ---------- */
 
 function parseWordKey(key) {
   const parts = key.split('/');
   return { source: parts[0], id: parts.slice(1, -1).join('/'), w: parts.at(-1) };
+}
+
+// Right, but another meaning of the word: name the one this sentence uses.
+function otherMeaningNote(gloss) {
+  return h('p', { class: 'fineprint' }, '这也是这个词的意思。这句里的意思是：', h('strong', { text: gloss }));
 }
 
 async function reviewBook(item) {
@@ -467,6 +505,10 @@ async function renderReview() {
 
     const meaning = item.direction === 'en2zh';
     const book = await reviewBook(item);
+    const word = book?.vocab.get(parseWordKey(item.key).w) ?? { lemma: item.lemma };
+    // Grading needs these, so a submitted answer waits for them.
+    const definitions = meaningsOf(word);
+    let answered = false;
     const input = h('input', {
       id: 'review-input', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
       lang: meaning ? 'zh-CN' : 'en', required: true,
@@ -491,18 +533,22 @@ async function renderReview() {
       feedback,
       h('div', { class: 'sheet-actions' }, submit));
 
-    form.addEventListener('submit', (event) => {
+    form.addEventListener('submit', async (event) => {
       event.preventDefault();
+      if (answered) return;
+      answered = true;
       const given = input.value;
-      const correct = meaning ? checkMeaning(given, item) : checkSpelling(given, item);
       input.readOnly = true;
       submit.remove();
+      const { correct, other } = meaning ? gradeMeaning(given, item, await definitions) : { correct: checkSpelling(given, item), other: false };
+      if (!form.isConnected) return;
       if (correct) {
-        feedback.replaceChildren(h('p', { class: 'ok', text: '✓ 正确' }), h('button', { type: 'button', class: 'primary', onclick: () => next(true, given), text: '下一个' }));
+        feedback.replaceChildren(h('p', { class: 'ok', text: '✓ 正确' }), other && otherMeaningNote(item.gloss) || '', definitionsBlock(word, item.gloss), h('button', { type: 'button', class: 'primary', onclick: () => next(true, given), text: '下一个' }));
         if (ttsSupported) speak(item.form, { book: parseWordKey(item.key) });
       } else {
         feedback.replaceChildren(
           h('p', { class: 'bad' }, '✗ 参考答案：', h('strong', { lang: meaning ? 'zh-CN' : 'en', text: meaning ? item.gloss : item.form })),
+          definitionsBlock(word, item.gloss),
           meaning && h('button', { type: 'button', class: 'text-btn', onclick: () => next(true, given), text: '我的答案意思也对' }),
           h('button', { type: 'button', class: 'primary', onclick: () => next(false, given), text: '下一个' }));
       }
@@ -518,6 +564,19 @@ async function renderReview() {
 
 /* ---------- Saved words ---------- */
 
+function savedDefinitions(key, saved) {
+  const body = h('div');
+  const more = h('details', { class: 'saved-defs' }, h('summary', { text: '全部释义' }), body);
+  more.addEventListener('toggle', async () => {
+    if (!more.open || body.firstChild) return;
+    const { source, id, w } = parseWordKey(key);
+    const book = await loadBook(source, id).catch(() => null);
+    const lines = await meaningsOf(book?.vocab.get(w) ?? { lemma: saved.lemma });
+    body.replaceChildren(lines.length ? definitionList(lines, saved.gloss) : h('p', { class: 'fineprint', text: '词典里没有这个词。' }));
+  });
+  return more;
+}
+
 function renderSaved() {
   document.title = '生词本 · cliffword';
   const entries = Object.entries(store.saved()).sort((a, b) => b[1].savedAt - a[1].savedAt);
@@ -531,8 +590,148 @@ function renderSaved() {
         h('span', { class: 'saved-gloss', text: w.gloss ?? '' }),
         w.bookTitle && h('span', { class: 'fineprint', text: `《${w.bookTitle}》` }),
         ttsSupported && h('button', { class: 'icon', type: 'button', 'aria-label': `朗读 ${w.lemma}`, onclick: () => speak(w.lemma, { book: parseWordKey(key) }), text: '🔊' }),
-        h('button', { class: 'text-btn', type: 'button', onclick: () => { store.toggleSaved(key); renderSaved(); }, text: '移除' }))))
+        h('button', { class: 'text-btn', type: 'button', onclick: () => { store.toggleSaved(key); renderSaved(); }, text: '移除' }),
+        savedDefinitions(key, w))))
       : h('p', { class: 'notice', text: '在词卡上点“收藏”，单词就会出现在这里。' })));
+}
+
+/* ---------- Contents ---------- */
+
+async function renderToc(route) {
+  const book = await loadBook(route.source, route.id);
+  const key = bookKey(book);
+  document.title = `目录 · ${book.title}`;
+  let filter = TOC_FILTERS.some((f) => f.id === route.filter) ? route.filter : 'all';
+  let query = '';
+  const opened = new Set();
+
+  const entries = () => tocEntries(book.chapters, {
+    completed: store.completedChapters(key), progress: store.chapterProgress(key),
+    bookmarks: store.bookmarks(key), current: store.position(key)?.chapter ?? null,
+  });
+  const summary = h('div', { class: 'toc-summary' });
+  const chips = h('div', { class: 'filters', role: 'group', 'aria-label': '筛选章节' });
+  const count = h('p', { class: 'shelf-count', role: 'status' });
+  const list = h('div', { class: 'toc-list' });
+
+  const search = h('input', { type: 'search', id: 'toc-search', autocomplete: 'off', placeholder: '章节名或章号', 'aria-labelledby': 'toc-search-label' });
+  search.addEventListener('input', () => { query = search.value; draw(); });
+
+  const jumpInput = h('input', { id: 'toc-jump', inputmode: 'numeric', autocomplete: 'off', placeholder: `1–${book.chapters.length}`, 'aria-labelledby': 'toc-jump-label' });
+  const jumpError = h('span', { class: 'bad', role: 'status' });
+  const jump = h('form', { class: 'toc-jump' },
+    h('label', { class: 'tool', for: 'toc-jump' }, h('span', { id: 'toc-jump-label', text: '跳到第几章' }), jumpInput),
+    h('button', { type: 'submit', class: 'chip dir', text: '跳转' }),
+    jumpError);
+  jump.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const target = chapterByNumber(entries(), jumpInput.value);
+    jumpError.textContent = target ? '' : `没有第 ${jumpInput.value.trim()} 章`;
+    if (target) location.hash = readHref(book.source, book.id, target.id);
+  });
+
+  const act = (kind, entry, label, text, pressed, run) => h('button', {
+    type: 'button', class: 'icon toc-act', 'data-act': `${kind}:${entry.id}`, 'aria-label': label, title: label, 'aria-pressed': pressed, text,
+    onclick: () => { run(); draw(`${kind}:${entry.id}`); },
+  });
+
+  const row = (e, all) => h('li', { class: `toc-row is-${e.state}`, 'data-chapter': e.id },
+    h('a', { class: 'toc-link', href: readHref(book.source, book.id, e.id), 'aria-current': e.current ? 'true' : null },
+      h('span', { class: 'toc-num', text: e.number }),
+      h('span', { class: 'toc-title', text: e.title }),
+      h('span', { class: 'toc-state', text: e.read ? '已读' : e.state === 'reading' ? `在读 ${e.percent}%` : '未读' })),
+    act('mark', e, `书签：${e.title}`, e.bookmarked ? '★' : '☆', String(e.bookmarked), () => store.toggleBookmark(key, e.id)),
+    act('read', e, `${e.read ? '标为未读' : '标为已读'}：${e.title}`, '✓', String(e.read), () => store.setChaptersRead(key, [e.id], !e.read)),
+    act('upto', e, `读到这里：第 1–${e.number} 章全部标为已读`, '⤓', null, () => store.setChaptersRead(key, all.slice(0, e.number).map((c) => c.id), true)));
+
+  function group(g, all) {
+    const rows = () => h('ul', { class: 'toc-rows' }, g.entries.map((e) => row(e, all)));
+    if (g.key === 'all') return rows();
+    const range = all.slice(g.from - 1, g.to);
+    const read = range.filter((e) => e.read).length;
+    const allRead = read === range.length;
+    const isOpen = opened.has(g.key) || Boolean(query.trim());
+    const body = h('div');
+    const fill = () => {
+      if (body.firstChild) return;
+      body.append(
+        h('button', {
+          type: 'button', class: 'text-btn', 'data-act': `group:${g.key}`, text: allRead ? '本组全部标为未读' : '本组全部标为已读',
+          onclick: () => { store.setChaptersRead(key, range.map((e) => e.id), !allRead); draw(`group:${g.key}`); },
+        }),
+        rows());
+    };
+    const details = h('details', { class: 'toc-group', open: isOpen },
+      h('summary', {}, `第 ${g.from}–${g.to} 章`, h('span', { class: 'toc-group-read', text: `已读 ${read}/${range.length}` })),
+      body);
+    // Long books: a closed group's rows aren't built until it's opened.
+    if (isOpen) fill();
+    details.addEventListener('toggle', () => {
+      if (details.open) { opened.add(g.key); fill(); } else opened.delete(g.key);
+    });
+    return details;
+  }
+
+  function drawSummary(all) {
+    const whole = bookProgress(all);
+    const pos = store.position(key);
+    const at = all.find((e) => e.id === pos?.chapter);
+    const unread = nextUnread(all, at?.number ?? 0);
+    const links = [];
+    if (at && !(whole.read === whole.total)) links.push(h('a', { class: 'primary-link toc-go', href: readHref(book.source, book.id, at.id), text: `继续阅读 · ${at.title}` }));
+    if (!at) links.push(h('a', { class: 'primary-link toc-go', href: readHref(book.source, book.id, all[0].id), text: '开始阅读' }));
+    if (at && unread && unread.id !== at.id) links.push(h('a', { class: 'toc-next', href: readHref(book.source, book.id, unread.id), text: `下一个未读：${unread.title}` }));
+    if (whole.read === whole.total) links.push(h('a', { class: 'primary-link toc-go', href: `${tocHref(book.source, book.id).replace('/toc/', '/read/')}?from=start`, text: '全部读完 · 从头再读' }));
+    summary.replaceChildren(
+      h('p', { class: 'toc-numbers', text: `已读 ${whole.read}/${whole.total} 章 · 全书 ${whole.percent}%` }),
+      h('span', { class: 'progress', 'aria-hidden': 'true' }, h('span', { style: `width: ${whole.percent}%` })),
+      h('div', { class: 'toc-actions' }, links,
+        h('button', {
+          type: 'button', class: 'text-btn', text: '清除阅读进度',
+          onclick: () => {
+            if (!confirm('清除这本书的阅读位置和已读记录？书签和答题记录会保留。')) return;
+            store.resetProgress(key);
+            draw();
+          },
+        })));
+  }
+
+  function draw(focus) {
+    const all = entries();
+    const shown = filterToc(all, { filter, query });
+    const base = filterToc(all, { query });
+    history.replaceState(null, '', `${tocHref(book.source, book.id)}${filter === 'all' ? '' : `?filter=${filter}`}`);
+    drawSummary(all);
+    chips.replaceChildren(h('span', { class: 'filter-label', 'aria-hidden': 'true', text: '筛选' }),
+      ...TOC_FILTERS.map((f) => h('button', {
+        type: 'button', class: 'chip', 'data-filter': f.id, 'aria-pressed': String(f.id === filter),
+        onclick: () => { filter = f.id; draw(`filter:${f.id}`); },
+      }, `${f.label} ${filterToc(base, { filter: f.id }).length}`)));
+    count.textContent = shown.length === all.length ? `共 ${all.length} 章` : `找到 ${shown.length} 章（共 ${all.length} 章）`;
+    list.replaceChildren(...(shown.length
+      ? groupToc(shown, undefined, all.length).map((g) => group(g, all))
+      : [h('p', { class: 'notice', text: '没有符合条件的章节。' })]));
+    if (focus?.startsWith('filter:')) chips.querySelector(`[data-filter="${CSS.escape(focus.slice(7))}"]`)?.focus();
+    else if (focus) list.querySelector(`[data-act="${CSS.escape(focus)}"]`)?.focus();
+  }
+
+  // The group holding the current chapter starts open.
+  const current = entries().find((e) => e.current);
+  if (current) opened.add(groupToc([current], undefined, book.chapters.length)[0]?.key);
+
+  app.replaceChildren(h('main', { class: 'page toc' },
+    h('nav', { class: 'crumbs' }, h('a', { href: '#/', text: '← 书库' })),
+    h('h1', { text: book.title }),
+    summary,
+    h('div', { class: 'shelf-tools' },
+      h('label', { class: 'tool tool-search', for: 'toc-search' }, h('span', { id: 'toc-search-label', text: '搜索章节' }), search),
+      jump),
+    chips,
+    count,
+    list));
+  draw();
+  scrollTo(0, 0);
+  if (current) list.querySelector(`[data-chapter="${CSS.escape(current.id)}"]`)?.scrollIntoView({ block: 'center' });
 }
 
 /* ---------- Reader ---------- */
@@ -547,8 +746,13 @@ async function renderReader(route) {
   const mode = MODES.some((m) => m.id === route.mode) ? route.mode : 'read';
   document.title = `${book.title} · ${ref.title}`;
 
-  const restoring = !route.fromStart && pos && pos.chapter === ref.id && pos.paragraph > 0;
-  store.setPosition(bookKey(book), { chapter: ref.id, chapterNumber: chapterIndex + 1, paragraph: restoring ? pos.paragraph : 0 });
+  // Resume where this chapter was left, unless it's finished or starting again.
+  const key = bookKey(book);
+  const finished = store.completedChapters(key).includes(ref.id);
+  const left = pos?.chapter === ref.id ? pos.paragraph : finished ? 0 : store.chapterProgress(key)[ref.id]?.paragraph ?? 0;
+  const restoring = !route.fromStart && left > 0;
+  const total = chapter.paragraphs.length;
+  store.setPosition(key, { chapter: ref.id, chapterNumber: chapterIndex + 1, paragraph: restoring ? left : 0, total });
 
   const tabs = h('div', { class: 'modes', role: 'group', 'aria-label': '学习模式' },
     MODES.map((m) => h('a', {
@@ -559,36 +763,73 @@ async function renderReader(route) {
   const body = mode === 'transfer' ? renderTransfer(book, chapter) : renderPassage(book, chapter, mode);
   const prev = book.chapters[chapterIndex - 1];
   const next = book.chapters[chapterIndex + 1];
+  const count = book.chapters.length;
+  const contents = () => tocEntries(book.chapters, {
+    completed: store.completedChapters(key), progress: store.chapterProgress(key), current: ref.id,
+  });
+
+  const fill = h('span');
+  const bar = h('div', { class: 'read-bar', role: 'progressbar', 'aria-label': '本章阅读进度', 'aria-valuemin': '0', 'aria-valuemax': '100' }, fill);
+  const whole = h('a', { class: 'nav-toc', href: tocHref(book.source, book.id) });
+  const showProgress = (percent) => {
+    fill.style.width = `${percent}%`;
+    bar.setAttribute('aria-valuenow', String(percent));
+    whole.textContent = `目录 · 全书 ${bookProgress(contents()).percent}%`;
+  };
+  const marked = () => store.bookmarks(key).includes(ref.id);
+  const mark = h('button', {
+    type: 'button', class: 'icon bookmark', 'aria-label': `书签：${ref.title}`, 'aria-pressed': String(marked()), text: marked() ? '★' : '☆',
+    onclick: () => {
+      const on = store.toggleBookmark(key, ref.id);
+      mark.setAttribute('aria-pressed', String(on));
+      mark.textContent = on ? '★' : '☆';
+    },
+  });
 
   app.replaceChildren(
     h('header', { class: 'topbar' },
       h('div', { class: 'topbar-inner' },
         h('a', { class: 'back', href: '#/', text: '← 书库' }),
         h('p', { class: 'where' }, h('span', { class: 'where-book', text: book.title }), ' · ', ref.title),
-        tabs)),
+        h('a', { class: 'toc-open', href: tocHref(book.source, book.id), 'aria-label': `目录，第 ${chapterIndex + 1} 章，共 ${count} 章`, text: `目录 ${chapterIndex + 1}/${count}` }),
+        tabs),
+      bar),
     h('main', { class: 'page reader', lang: 'zh-CN' },
-      h('h1', { class: 'chapter-title', text: ref.title }),
+      h('div', { class: 'chapter-head' }, h('h1', { class: 'chapter-title', text: ref.title }), mark),
       chapter.annotated === false && h('p', { class: 'notice', text: '这一章还没有标注英文单词。让你的 agent 运行 cliffword-annotate。' }),
       body,
       h('nav', { class: 'chapter-nav', 'aria-label': '章节' },
         prev ? h('a', { class: 'prev', href: readHref(book.source, book.id, prev.id, mode), text: `← ${prev.title}` }) : h('span'),
+        whole,
         next
           ? h('a', { class: 'next', href: readHref(book.source, book.id, next.id, mode), onclick: () => { store.noteNextChapter(bookKey(book)); store.markComplete(bookKey(book), ref.id); }, text: `下一章：${next.title} →` })
           : h('a', { class: 'next', href: '#/', onclick: () => store.markComplete(bookKey(book), ref.id), text: '全书完 · 返回书库' }))));
 
   const paragraphs = [...app.querySelectorAll('.para')];
-  if (restoring && paragraphs[pos.paragraph]) paragraphs[pos.paragraph].scrollIntoView({ block: 'start' });
+  if (restoring && paragraphs[left]) paragraphs[left].scrollIntoView({ block: 'start' });
   else scrollTo(0, 0);
+  showProgress(finished ? 100 : total ? Math.round(((restoring ? left : 0) / total) * 100) : 0);
+
+  // ← and → turn chapters, except while typing or in a dialog.
+  readerKeys = (event) => {
+    if (event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+    if (event.target.closest?.('input, textarea, select') || document.querySelector('dialog[open]')) return;
+    if (event.key === 'ArrowRight' && next) app.querySelector('.chapter-nav .next')?.click();
+    if (event.key === 'ArrowLeft' && prev) app.querySelector('.chapter-nav .prev')?.click();
+  };
+  addEventListener('keydown', readerKeys);
 
   let timer;
   scrollHandler = () => {
     clearTimeout(timer);
     timer = setTimeout(() => {
+      if (!paragraphs.length) return; // Transfer mode has no passage to track.
       const top = app.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0;
-      const index = paragraphs.findIndex((p) => p.getBoundingClientRect().bottom > top + 8);
-      store.setPosition(bookKey(book), { chapter: ref.id, chapterNumber: chapterIndex + 1, paragraph: Math.max(0, index) });
-      const last = paragraphs.at(-1);
-      if (last && last.getBoundingClientRect().bottom <= innerHeight) store.markComplete(bookKey(book), ref.id);
+      const index = Math.max(0, paragraphs.findIndex((p) => p.getBoundingClientRect().bottom > top + 8));
+      store.setPosition(key, { chapter: ref.id, chapterNumber: chapterIndex + 1, paragraph: index, total });
+      const atEnd = paragraphs.at(-1).getBoundingClientRect().bottom <= innerHeight;
+      if (atEnd) store.markComplete(key, ref.id);
+      showProgress(atEnd || store.completedChapters(key).includes(ref.id) ? 100 : Math.round((index / total) * 100));
     }, 250);
   };
   addEventListener('scroll', scrollHandler, { passive: true });
@@ -684,6 +925,7 @@ function openWordCard({ book, chapter, paragraph, p, index, seg }) {
       seg.form !== word.lemma && h('span', { class: 'form', lang: 'en', text: `本句：${seg.form}` })),
     h('h3', { text: '这句里的意思' }),
     h('p', { class: 'gloss', text: seg.gloss }),
+    definitionsBlock(word, seg.gloss),
     h('h3', { text: '原句' }),
     h('p', { class: 'context' }, plainText(paragraph, index)),
     word.example && h('h3', { text: '英文例句' }),
@@ -708,6 +950,9 @@ function openAnswer(ctx, chip) {
   const { book, chapter, paragraph, p, index, seg, occKey, mode } = ctx;
   const key = wordKey(book, seg.w);
   const meaning = mode === 'en2zh';
+  const word = book.vocab.get(seg.w) ?? { lemma: seg.form };
+  // Grading needs these, so a submitted answer waits for them.
+  const definitions = meaningsOf(word);
   const input = h('input', {
     id: 'answer-input', name: 'answer', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
     lang: meaning ? 'zh-CN' : 'en', required: true,
@@ -740,20 +985,22 @@ function openAnswer(ctx, chip) {
     feedback,
     h('div', { class: 'sheet-actions' }, submit));
 
-  form.addEventListener('submit', (event) => {
+  form.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (pending) return;
     const given = input.value;
-    const correct = meaning ? checkMeaning(given, seg) : checkSpelling(given, seg);
     pending = { given };
     input.readOnly = true;
     submit.remove();
+    const { correct, other } = meaning ? gradeMeaning(given, seg, await definitions) : { correct: checkSpelling(given, seg), other: false };
+    if (!pending) return; // Closed while waiting: already recorded.
     if (correct) {
-      feedback.replaceChildren(h('p', { class: 'ok', text: '✓ 正确' }));
-      feedback.append(h('button', { type: 'button', class: 'primary', onclick: () => finish(true), text: '继续' }));
+      feedback.replaceChildren(h('p', { class: 'ok', text: '✓ 正确' }), other && otherMeaningNote(seg.gloss) || '');
+      feedback.append(definitionsBlock(word, seg.gloss), h('button', { type: 'button', class: 'primary', onclick: () => finish(true), text: '继续' }));
     } else {
       feedback.replaceChildren(
         h('p', { class: 'bad' }, '✗ 参考答案：', h('strong', { lang: meaning ? 'zh-CN' : 'en', text: meaning ? seg.gloss : seg.form })),
+        definitionsBlock(word, seg.gloss),
         meaning && h('button', { type: 'button', class: 'text-btn', onclick: () => finish(true), text: '我的答案意思也对' }),
         h('button', { type: 'button', class: 'primary', onclick: () => finish(false), text: '知道了' }));
     }

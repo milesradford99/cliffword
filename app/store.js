@@ -19,6 +19,9 @@ const empty = () => ({
   stats: { nextChapter: {}, completed: {}, days: [] },
   // shelf: per book, a category and status the reader chose. prefs: shelf view and filters.
   shelf: {}, prefs: {},
+  // chapters: per book and chapter, how far it was read (paragraph numbers, never text).
+  // bookmarks: per book, the chapter ids the reader marked.
+  chapters: {}, bookmarks: {},
 });
 
 export function startOfDay(ms) {
@@ -103,7 +106,35 @@ export function createStore(storage = globalThis.localStorage, now = () => Date.
     position: (bookKey) => data.positions[bookKey] ?? null,
     setPosition(bookKey, pos) {
       // at: when this book was last read, for the shelf's 最近阅读 sort.
-      data.positions[bookKey] = { ...pos, at: now() };
+      // total: the chapter's paragraph count, kept per chapter for the contents page.
+      const { total, ...position } = pos;
+      data.positions[bookKey] = { ...position, at: now() };
+      if (total) (data.chapters[bookKey] ??= {})[pos.chapter] = { paragraph: pos.paragraph, total, at: now() };
+      save();
+    },
+    chapterProgress: (bookKey) => data.chapters[bookKey] ?? {},
+    completedChapters: (bookKey) => data.stats.completed[bookKey] ?? [],
+    // Mark chapters read or unread from the contents page.
+    setChaptersRead(bookKey, chapterIds, read) {
+      const ids = new Set(chapterIds);
+      const kept = (data.stats.completed[bookKey] ?? []).filter((id) => !ids.has(id));
+      data.stats.completed[bookKey] = read ? [...kept, ...ids] : kept;
+      if (!read) for (const id of ids) delete data.chapters[bookKey]?.[id];
+      save();
+    },
+    bookmarks: (bookKey) => data.bookmarks[bookKey] ?? [],
+    toggleBookmark(bookKey, chapterId) {
+      const list = data.bookmarks[bookKey] ?? [];
+      const on = !list.includes(chapterId);
+      data.bookmarks[bookKey] = on ? [...list, chapterId] : list.filter((id) => id !== chapterId);
+      save();
+      return on;
+    },
+    // Forget where this book was read to. Bookmarks and answers stay.
+    resetProgress(bookKey) {
+      delete data.positions[bookKey];
+      delete data.chapters[bookKey];
+      delete data.stats.completed[bookKey];
       save();
     },
 
