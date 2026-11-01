@@ -33,6 +33,7 @@ There is one entry per **sense**, so the ID includes the part of speech: `suspec
 | `ipa` | yes | Pronunciation, e.g. `/səˈspekt/`. |
 | `pos` | yes | Part of speech: `n.`, `v.`, `adj.`, `adv.`, … |
 | `example` | yes | A short, natural English sentence that is **not** from the story, containing the word. Used for the transfer exercise. |
+| `meanings` | no | Every dictionary meaning, one line per part of speech, e.g. `["n. 破晓, 黎明", "vi. 破晓"]`. Shown as 全部释义. Leave it out for words in `data/ielts.json`; a built-in word that isn't on that list needs it. |
 
 ## chapters/NN.json
 
@@ -55,7 +56,7 @@ A segment is either plain Chinese text or an **occurrence**:
 | `w` | yes | Vocab ID. |
 | `form` | yes | The English as written here, which may be inflected (`suspected`). This is the answer for ZH→EN spelling. |
 | `gloss` | yes | The Chinese meaning **in this sentence**. |
-| `accept` | no | Other Chinese answers accepted for EN→ZH recall. Defaults to `[gloss]`. |
+| `accept` | no | Other Chinese answers accepted for EN→ZH recall, beyond `gloss` and the word's dictionary meanings. |
 
 ## Rules the validator enforces
 

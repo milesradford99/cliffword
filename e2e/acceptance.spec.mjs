@@ -34,7 +34,7 @@ test('read, save, recall in both directions, and keep it all after reload', asyn
   // 3. EN→ZH: one wrong, one right.
   await page.getByRole('link', { name: '英→中' }).click();
   await page.getByRole('button', { name: '写出 scholar 在这句里的意思' }).first().click();
-  await submitAnswer(page, '学者');
+  await submitAnswer(page, '苹果');
   await expect(answer(page).getByText('参考答案')).toBeVisible();
   await answer(page).getByRole('button', { name: '知道了' }).click();
   await expect(page.getByRole('button', { name: /^scholar，书生/ }).first()).toHaveClass(/bad/);
@@ -96,7 +96,7 @@ test('errors and saved words are due the next day, and export/import restores st
   // One wrong answer and one saved word on day 1.
   await page.goto('/#/read/builtin/huapi/01?mode=en2zh');
   await page.getByRole('button', { name: '写出 scholar 在这句里的意思' }).first().click();
-  await submitAnswer(page, '学者');
+  await submitAnswer(page, '苹果');
   await answer(page).getByRole('button', { name: '知道了' }).click();
   await page.goto('/#/read/builtin/huapi/01');
   await page.getByRole('button', { name: /^dawn，天刚亮/ }).first().click();
@@ -240,7 +240,7 @@ test('the shelf URL keeps its state for Back and bookmarks', async ({ page }) =>
   await shelf.getByRole('button', { name: '第 2 页' }).click();
   await expect(page).toHaveURL(/#\/\?page=2$/);
   await shelf.getByRole('link', { name: /第25本书/ }).click();
-  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  await expect(page).toHaveURL(/#\/read\/library\/book-25$/);
   await page.goBack();
   await expect(count).toHaveText('共 31 本 · 第 25–31 本 · 第 2/2 页');
   await page.goBack();
@@ -268,4 +268,146 @@ test('a finished book starts again from chapter 1, and old reading history still
   await expect(page.locator('.shelf .book-title').first()).toHaveText('画皮');
   await card.click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('第1章 包袱');
+});
+
+test('the contents page tracks, marks and finds chapters', async ({ page }) => {
+  await page.goto('/#/read/builtin/huapi/01');
+  await page.getByRole('link', { name: '目录，第 1 章，共 3 章' }).click();
+  await expect(page.getByRole('heading', { level: 1, name: '画皮' })).toBeVisible();
+  const rows = page.locator('.toc-row');
+  await expect(rows).toHaveCount(3);
+  await expect(rows.nth(0).locator('.toc-link')).toHaveAttribute('aria-current', 'true');
+  await expect(rows.nth(0)).toContainText('在读 0%');
+  await expect(rows.nth(2)).toContainText('未读');
+
+  // Mark chapters, bookmark one, and filter.
+  await rows.nth(0).getByRole('button', { name: /^标为已读/ }).click();
+  await expect(rows.nth(0)).toContainText('已读');
+  await expect(page.locator('.toc-numbers')).toHaveText('已读 1/3 章 · 全书 33%');
+  await rows.nth(2).getByRole('button', { name: /^书签/ }).click();
+  await page.getByRole('button', { name: '书签 1' }).click();
+  await expect(rows).toHaveCount(1);
+  await expect(page).toHaveURL(/filter=bookmarked/);
+  await page.getByRole('button', { name: '全部 3' }).click();
+
+  // "Read up to here" marks everything before it; the shelf agrees.
+  await rows.nth(1).getByRole('button', { name: /读到这里/ }).click();
+  await expect(page.locator('.toc-numbers')).toHaveText('已读 2/3 章 · 全书 67%');
+  await page.goto('/');
+  await expect(page.locator('.shelf').getByRole('link', { name: /画皮/ })).toContainText('2/3 章');
+
+  // Search, jump by number, bad numbers say so.
+  await page.goto('/#/toc/builtin/huapi');
+  await page.getByLabel('搜索章节', { exact: true }).fill('拂尘');
+  await expect(rows).toHaveCount(1);
+  await page.getByLabel('搜索章节', { exact: true }).fill('');
+  await page.getByLabel('跳到第几章', { exact: true }).fill('9');
+  await page.getByRole('button', { name: '跳转' }).click();
+  await expect(page.getByText('没有第 9 章')).toBeVisible();
+  await page.getByLabel('跳到第几章', { exact: true }).fill('3');
+  await page.getByRole('button', { name: '跳转' }).click();
+  await expect(page.getByRole('heading', { level: 1 })).toContainText('第3章');
+
+  // Clearing progress keeps bookmarks.
+  await page.goto('/#/toc/builtin/huapi');
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: '清除阅读进度' }).click();
+  await expect(page.locator('.toc-numbers')).toHaveText('已读 0/3 章 · 全书 0%');
+  await expect(page.getByRole('button', { name: '书签 1' })).toBeVisible();
+});
+
+test('a long book groups its contents and opens where you are', async ({ page }) => {
+  const chapters = Array.from({ length: 120 }, (_, i) => ({ id: String(i + 1).padStart(3, '0'), title: `第${i + 1}回` }));
+  await page.route('**/library/demo/book.json', (route) => route.fulfill({ json: { id: 'demo', title: '长书', chapters } }));
+  await page.route('**/library/demo/source/*.txt', (route) => route.fulfill({ body: '他来了。\n她走了。\n' }));
+  await page.goto('/#/read/library/demo/060');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('第60回');
+  await page.goto('/#/toc/library/demo');
+
+  const groups = page.locator('.toc-group');
+  await expect(groups).toHaveCount(3);
+  await expect(groups.nth(1)).toHaveAttribute('open', '');
+  await expect(groups.nth(1).locator('.toc-row')).toHaveCount(50);
+  await expect(groups.nth(0).locator('.toc-row')).toHaveCount(0); // Not built until opened.
+  await groups.nth(0).locator('summary').click();
+  await expect(groups.nth(0).locator('.toc-row')).toHaveCount(50);
+
+  await groups.nth(0).getByRole('button', { name: '本组全部标为已读' }).click();
+  await expect(page.locator('.toc-numbers')).toHaveText('已读 50/120 章 · 全书 42%');
+  await expect(page.locator('.toc-next')).toHaveText('下一个未读：第61回');
+
+  await page.getByLabel('搜索章节', { exact: true }).fill('第118回');
+  await expect(page.locator('.toc-row')).toHaveCount(1);
+  await expect(page.locator('.toc-row')).toBeVisible();
+});
+
+test('arrow keys turn chapters and the reader shows progress', async ({ page }) => {
+  await page.goto('/#/read/builtin/huapi/01');
+  await expect(page.getByRole('progressbar', { name: '本章阅读进度' })).toHaveAttribute('aria-valuenow', '0');
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('第2章 拂尘');
+  await expect(page.locator('.nav-toc')).toContainText('全书 33%');
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('第1章 包袱');
+
+  // Not while typing, and a bookmark set here shows on the contents page.
+  await page.getByRole('link', { name: '英→中' }).click();
+  await page.getByRole('button', { name: '写出 scholar 在这句里的意思' }).first().click();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('第1章 包袱');
+  await answer(page).getByRole('button', { name: '关闭' }).click();
+  await page.getByRole('button', { name: /^书签/ }).click();
+  await page.goto('/#/toc/builtin/huapi?filter=bookmarked');
+  await expect(page.locator('.toc-row')).toHaveCount(1);
+});
+
+test('words show every definition, marking the one in this sentence', async ({ page }) => {
+  await page.goto('/#/read/builtin/huapi/01');
+  // From the word list.
+  await page.getByRole('button', { name: /^dawn，天刚亮/ }).first().click();
+  const defs = wordCard(page).locator('.defs li');
+  await expect(defs).toHaveText(['n.破晓, 黎明', 'vi.破晓']);
+  await wordCard(page).getByRole('button', { name: /收藏/ }).click();
+  await wordCard(page).getByRole('button', { name: '关闭' }).click();
+
+  // A word off the list has its own meanings; the sentence's one is marked.
+  await page.getByRole('button', { name: /^scholar，书生/ }).first().click();
+  await expect(wordCard(page).locator('.defs li.here')).toContainText('书生');
+  await expect(wordCard(page).locator('.def-tag')).toHaveText('本句');
+  await wordCard(page).getByRole('button', { name: '关闭' }).click();
+
+  // Any real definition is correct; the feedback names this sentence's meaning.
+  await page.getByRole('link', { name: '英→中' }).click();
+  await page.getByRole('button', { name: '写出 scholar 在这句里的意思' }).first().click();
+  await submitAnswer(page, '学者');
+  await expect(answer(page).getByText('✓ 正确')).toBeVisible();
+  await expect(answer(page).getByText('这也是这个词的意思。这句里的意思是：书生')).toBeVisible();
+  await expect(answer(page).locator('.defs li')).not.toHaveCount(0);
+  await answer(page).getByRole('button', { name: '继续' }).click();
+  await expect(page.getByRole('button', { name: /^scholar，书生/ }).first()).toHaveClass(/ok/);
+
+  // 生词本 shows them on demand.
+  await page.goto('/#/saved');
+  await page.locator('.saved-defs summary').click();
+  await expect(page.locator('.saved-defs .defs li').first()).toContainText('破晓');
+});
+
+test('scrolling records chapter progress, and each chapter resumes where it was left', async ({ page }) => {
+  await page.goto('/#/read/builtin/huapi/02');
+  const bar = page.getByRole('progressbar', { name: '本章阅读进度' });
+  await expect(bar).toHaveAttribute('aria-valuenow', '0');
+  await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight * 0.4));
+  await expect.poll(async () => Number(await bar.getAttribute('aria-valuenow'))).toBeGreaterThan(0);
+  const percent = Number(await bar.getAttribute('aria-valuenow'));
+
+  await page.goto('/#/toc/builtin/huapi');
+  await expect(page.locator('.toc-row').nth(1)).toContainText(`在读 ${percent}%`);
+
+  // Reading another chapter doesn't lose this one's place.
+  await page.goto('/#/read/builtin/huapi/03');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('第3章 人心');
+  await page.goto('/#/read/builtin/huapi/02');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('第2章 拂尘');
+  await expect(bar).toHaveAttribute('aria-valuenow', String(percent));
+  await expect.poll(() => page.evaluate(() => scrollY)).toBeGreaterThan(0);
 });

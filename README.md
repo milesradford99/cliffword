@@ -55,6 +55,14 @@ On the 书架 (bookshelf) every book has a cover in a grid, or a dense row in li
 
 Your book stays on your machine: `library/` is gitignored, and no book text is downloaded or uploaded. The only download is the Kokoro model the first time you make audio. Only import texts you have the right to use.
 
+## Chapters and definitions
+
+Every book has a 目录 page, opened from the reader or a book's ⋯ button. It shows how far you've read in each chapter and the whole book, and offers 继续阅读 and 下一个未读. Search chapters, jump to a chapter number, or filter by 未读, 已读 or 书签. You can mark a chapter read or unread, bookmark it, mark everything up to a chapter as read, or clear a book's progress. Books over 50 chapters are grouped, and a group can be marked all at once.
+
+While reading, a bar shows your place in the chapter, each chapter resumes where you left it, and ← and → turn chapters.
+
+Word cards show every definition of a word, with the meaning in this sentence marked 本句. Recall answers, reviews and 生词本 show them too. In recall and review, any real definition counts as correct; if yours isn't the one this sentence uses, the feedback names it. The definitions come from `data/ielts.json`, about 740 KB, loaded the first time they're needed.
+
 ## English pronunciation
 
 Built-in words, inflected forms and example sentences ship with 24 kHz audio generated locally by [Kokoro-82M v1.0](https://huggingface.co/hexgrad/Kokoro-82M), using the American English `af_heart` voice at 0.9× speed. Click the existing 🔊 buttons to listen. Audio also works in browsers without speech synthesis. Closing a card, moving to the next review item, or navigating stops playback.

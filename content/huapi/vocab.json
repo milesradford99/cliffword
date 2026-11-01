@@ -5,7 +5,10 @@
       "lemma": "scholar",
       "ipa": "/ˈskɒlə/",
       "pos": "n.",
-      "example": "She is a respected scholar of Chinese history."
+      "example": "She is a respected scholar of Chinese history.",
+      "meanings": [
+        "n. 学者, 读书人, 书生, 奖学金获得者"
+      ]
     },
     {
       "id": "dawn-n",
@@ -19,7 +22,10 @@
       "lemma": "stranger",
       "ipa": "/ˈstreɪndʒə/",
       "pos": "n.",
-      "example": "A stranger stopped me to ask for directions."
+      "example": "A stranger stopped me to ask for directions.",
+      "meanings": [
+        "n. 陌生人, 外地人, 外行"
+      ]
     },
     {
       "id": "bundle-n",
@@ -61,21 +67,32 @@
       "lemma": "mysterious",
       "ipa": "/mɪˈstɪəriəs/",
       "pos": "adj.",
-      "example": "A mysterious illness spread through the village."
+      "example": "A mysterious illness spread through the village.",
+      "meanings": [
+        "a. 神秘的, 不可思议的, 难以理解的"
+      ]
     },
     {
       "id": "evil-n",
       "lemma": "evil",
       "ipa": "/ˈiːvl/",
       "pos": "n.",
-      "example": "The film is a simple story of good against evil."
+      "example": "The film is a simple story of good against evil.",
+      "meanings": [
+        "n. 邪恶, 罪恶, 祸害",
+        "a. 邪恶的, 有害的, 不幸的"
+      ]
     },
     {
       "id": "warn-v",
       "lemma": "warn",
       "ipa": "/wɔːn/",
       "pos": "v.",
-      "example": "Experts warn that sea levels will continue to rise."
+      "example": "Experts warn that sea levels will continue to rise.",
+      "meanings": [
+        "vt. 警告, 提醒, 告诫",
+        "vi. 发出警告"
+      ]
     },
     {
       "id": "temptation-n",
@@ -89,14 +106,21 @@
       "lemma": "ignore",
       "ipa": "/ɪɡˈnɔː/",
       "pos": "v.",
-      "example": "You cannot ignore the problem forever."
+      "example": "You cannot ignore the problem forever.",
+      "meanings": [
+        "vt. 忽视, 不理睬, 不顾"
+      ]
     },
     {
       "id": "peek-v",
       "lemma": "peek",
       "ipa": "/piːk/",
       "pos": "v.",
-      "example": "She peeked at the last page of the novel."
+      "example": "She peeked at the last page of the novel.",
+      "meanings": [
+        "vi. 偷看, 窥视",
+        "n. 偷看, 一瞥"
+      ]
     },
     {
       "id": "monster-n",
@@ -110,7 +134,12 @@
       "lemma": "brush",
       "ipa": "/brʌʃ/",
       "pos": "n.",
-      "example": "Clean the brush before the paint dries."
+      "example": "Clean the brush before the paint dries.",
+      "meanings": [
+        "n. 刷子, 画笔, 灌木丛, 轻触",
+        "vt. 刷, 拂, 擦过",
+        "vi. 轻轻擦过"
+      ]
     },
     {
       "id": "disguise-n",
@@ -131,7 +160,11 @@
       "lemma": "regret",
       "ipa": "/rɪˈɡret/",
       "pos": "n.",
-      "example": "My only regret is that I didn't start earlier."
+      "example": "My only regret is that I didn't start earlier.",
+      "meanings": [
+        "n. 遗憾, 后悔, 惋惜",
+        "vt. 后悔, 为…感到遗憾"
+      ]
     },
     {
       "id": "deceive-v",
@@ -145,7 +178,10 @@
       "lemma": "hesitate",
       "ipa": "/ˈhezɪteɪt/",
       "pos": "v.",
-      "example": "Don't hesitate to contact me if you have any questions."
+      "example": "Don't hesitate to contact me if you have any questions.",
+      "meanings": [
+        "vi. 犹豫, 踌躇, 不愿"
+      ]
     },
     {
       "id": "fierce-adj",
@@ -194,7 +230,10 @@
       "lemma": "sword",
       "ipa": "/sɔːd/",
       "pos": "n.",
-      "example": "The museum displays a sword from the Ming dynasty."
+      "example": "The museum displays a sword from the Ming dynasty.",
+      "meanings": [
+        "n. 剑, 刀, 武力"
+      ]
     },
     {
       "id": "capture-v",
@@ -208,7 +247,11 @@
       "lemma": "beg",
       "ipa": "/beɡ/",
       "pos": "v.",
-      "example": "He had to beg his parents for a second chance."
+      "example": "He had to beg his parents for a second chance.",
+      "meanings": [
+        "vt. 乞求, 恳求",
+        "vi. 乞讨, 请求"
+      ]
     },
     {
       "id": "revive-v",

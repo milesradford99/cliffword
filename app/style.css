@@ -398,3 +398,63 @@ dialog::backdrop { background: rgb(30 20 10 / 0.45); }
   .books-list .book-when { grid-area: 3 / 1; }
   .books-list .book-action { grid-area: 3 / 2; }
 }
+
+/* ---------- Reader progress ---------- */
+
+.topbar-inner { grid-template-columns: auto 1fr auto; }
+.toc-open { min-height: 44px; display: inline-flex; align-items: center; font-size: 0.9rem; text-decoration: none; white-space: nowrap; }
+.read-bar { height: 3px; background: var(--rule); }
+.read-bar span { display: block; height: 100%; width: 0; background: var(--accent); }
+
+.chapter-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.5rem; }
+.bookmark { flex: none; color: var(--accent); margin-top: 0.4rem; }
+.chapter-nav { align-items: center; }
+.nav-toc { font-size: 0.9rem; }
+
+/* ---------- Contents ---------- */
+
+.page.toc h1 { font-size: 1.8rem; margin: 0.5rem 0 0.25rem; }
+.toc-summary { margin-bottom: 1rem; }
+.toc-numbers { margin: 0; color: var(--muted); font-family: var(--ui); font-size: 0.9rem; }
+.toc-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 1rem; margin-top: 0.5rem; font-family: var(--ui); font-size: 0.95rem; }
+.toc-jump { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; }
+.toc-jump input { width: 6.5rem; }
+.toc-jump .bad { flex: 1 1 100%; font-family: var(--ui); font-size: 0.85rem; }
+
+.toc-list { margin-top: 0.75rem; }
+.toc-rows { list-style: none; margin: 0; padding: 0; background: var(--card); border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; }
+.toc-row { display: flex; align-items: center; }
+.toc-row + .toc-row { border-top: 1px solid var(--rule); }
+.toc-link {
+  flex: 1 1 auto; min-width: 0; min-height: 44px; display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.35rem 0.25rem 0.35rem 0.75rem; color: var(--ink); text-decoration: none;
+}
+.toc-link:hover { background: var(--accent-soft); }
+.toc-link[aria-current="true"] .toc-title { color: var(--accent); font-weight: 600; }
+.toc-num { flex: none; min-width: 2.2em; color: var(--muted); font-family: var(--ui); font-size: 0.8rem; text-align: right; }
+.toc-title { flex: 1 1 auto; min-width: 0; line-height: 1.4; overflow-wrap: anywhere; }
+.toc-state { flex: none; color: var(--muted); font-family: var(--ui); font-size: 0.78rem; white-space: nowrap; }
+.is-read .toc-title { color: var(--muted); }
+.is-read .toc-state { color: var(--ok); }
+.is-reading .toc-state { color: var(--accent); }
+.toc-act { flex: none; min-width: 36px; min-height: 44px; padding: 0; font-size: 1rem; color: var(--muted); }
+.toc-act[aria-pressed="true"] { color: var(--accent); }
+
+.toc-group { margin-bottom: 0.5rem; }
+.toc-group summary {
+  display: flex; justify-content: space-between; align-items: center; gap: 1rem; min-height: 44px; padding: 0.25rem 0.75rem;
+  border: 1px solid var(--rule); border-radius: 10px; background: var(--card); cursor: pointer; font-family: var(--ui); font-size: 0.95rem;
+}
+.toc-group[open] summary { margin-bottom: 0.25rem; }
+.toc-group-read { color: var(--muted); font-size: 0.8rem; }
+
+/* ---------- Definitions ---------- */
+
+.defs { list-style: none; margin: 0.15rem 0 0; padding: 0; font-size: 1rem; line-height: 1.6; }
+.defs li { padding: 0.15rem 0.4rem; border-radius: 4px; }
+.defs li.here { background: var(--accent-soft); }
+.defs .pos { color: var(--muted); margin-right: 0.35rem; font-size: 0.9em; }
+.def-tag { margin-left: 0.4rem; color: var(--accent); font-family: var(--ui); font-size: 0.75rem; }
+.feedback .defs-block { flex: 1 1 100%; }
+.saved-defs { flex: 1 1 100%; font-size: 1rem; }
+.saved-defs summary { cursor: pointer; color: var(--muted); font-family: var(--ui); font-size: 0.85rem; }
